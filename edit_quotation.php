@@ -16,6 +16,32 @@ $id = intval($_GET['id']); // $quotation_id yerine $id kullanalım (daha kısa)
 
 $conn = getDbConnection();
 
+// Teklif sahibi mi kontrol et
+try {
+    $stmt = $conn->prepare("SELECT user_id FROM quotations WHERE id = :id");
+    $stmt->bindParam(':id', $id);
+    $stmt->execute();
+    
+    if ($stmt->rowCount() == 0) {
+        setMessage('error', 'Teklif bulunamadı.');
+        header("Location: quotations.php");
+        exit;
+    }
+    
+    $quotationCheck = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Teklifi sadece sahibi veya admin düzenleyebilir
+    if ($quotationCheck['user_id'] != $_SESSION['user_id'] && !isAdmin()) {
+        setMessage('error', 'Bu teklifi düzenleme yetkiniz bulunmamaktadır.');
+        header("Location: quotations.php");
+        exit;
+    }
+} catch(PDOException $e) {
+    setMessage('error', 'Yetki kontrolünde hata: ' . $e->getMessage());
+    header("Location: quotations.php");
+    exit;
+}
+
 // Teklif ve kalemlerini çek
 $quotation = null;
 $items = [];

@@ -14,6 +14,26 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = $_GET['delete'];
     
     try {
+        // Önce kullanıcının yetkisini kontrol et
+        $stmt = $conn->prepare("SELECT user_id FROM quotations WHERE id = :id");
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+        $stmt->execute();
+        
+        if ($stmt->rowCount() == 0) {
+            setMessage('error', 'Teklif bulunamadı.');
+            header("Location: quotations.php");
+            exit;
+        }
+        
+        $quotation = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        // Teklifi sadece sahibi veya admin silebilir
+        if ($quotation['user_id'] != $_SESSION['user_id'] && !isAdmin()) {
+            setMessage('error', 'Bu teklifi silme yetkiniz bulunmamaktadır.');
+            header("Location: quotations.php");
+            exit;
+        }
+        
         // İşlem başlat
         $conn->beginTransaction();
         
@@ -45,6 +65,26 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 if (isset($_GET['updateStatus']) && is_numeric($_GET['updateStatus']) && isset($_GET['status'])) {
     $id = $_GET['updateStatus'];
     $status = $_GET['status'];
+    
+    // Önce kullanıcının yetkisini kontrol et
+    $stmt = $conn->prepare("SELECT user_id FROM quotations WHERE id = :id");
+    $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+    $stmt->execute();
+    
+    if ($stmt->rowCount() == 0) {
+        setMessage('error', 'Teklif bulunamadı.');
+        header("Location: quotations.php");
+        exit;
+    }
+    
+    $quotation = $stmt->fetch(PDO::FETCH_ASSOC);
+    
+    // Teklif durumunu sadece sahibi veya admin değiştirebilir
+    if ($quotation['user_id'] != $_SESSION['user_id'] && !isAdmin()) {
+        setMessage('error', 'Bu teklifin durumunu değiştirme yetkiniz bulunmamaktadır.');
+        header("Location: quotations.php");
+        exit;
+    }
     
     // Geçerli statüs kontrolü
     $validStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
@@ -253,6 +293,7 @@ include 'includes/sidebar.php';
                                                     <a href="view_quotation.php?id=<?php echo $quotation['id']; ?>" class="btn btn-sm btn-info action-btn" title="Görüntüle">
                                                         <i class="bi bi-eye"></i>
                                                     </a>
+                                                    <?php if ($quotation['user_id'] == $_SESSION['user_id'] || isAdmin()): // Sadece sahibi veya admin ise düzenleme, durum değiştirme ve silme butonlarını göster ?>
                                                     <a href="edit_quotation.php?id=<?php echo $quotation['id']; ?>" class="btn btn-sm btn-warning action-btn" title="Düzenle">
                                                         <i class="bi bi-pencil"></i>
                                                     </a>
@@ -275,6 +316,14 @@ include 'includes/sidebar.php';
                                                     <a href="javascript:void(0);" onclick="confirmDelete(<?php echo $quotation['id']; ?>, '<?php echo htmlspecialchars(addslashes($quotation['reference_no'])); ?>')" class="btn btn-sm btn-danger action-btn" title="Sil">
                                                         <i class="bi bi-trash"></i>
                                                     </a>
+                                                    <?php else: // Sahibi değilse sadece PDF ve Word görüntüleme butonlarını göster ?>
+                                                    <a href="quotation_pdf.php?id=<?php echo $quotation['id']; ?>" class="btn btn-sm btn-success action-btn" target="_blank" title="PDF">
+                                                        <i class="bi bi-file-pdf"></i>
+                                                    </a>
+                                                    <a href="quotation_word.php?id=<?php echo $quotation['id']; ?>" class="btn btn-sm btn-primary action-btn" title="Word">
+                                                        <i class="bi bi-file-word"></i>
+                                                    </a>
+                                                    <?php endif; ?>
                                                 </div>
                                             </td>
                                         </tr>

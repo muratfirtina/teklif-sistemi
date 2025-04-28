@@ -252,6 +252,45 @@ include 'includes/sidebar.php';
                 <div class="alert alert-danger"><?php echo $errorMessage; ?></div>
             <?php endif; ?>
 
+            <!-- Hızlı Erişim -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card card-dashboard">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Hızlı Erişim</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-3 mb-3">
+                                    <a href="new_quotation.php" class="btn btn-primary w-100 py-3">
+                                        <i class="bi bi-file-earmark-plus fs-4 d-block mb-2"></i>
+                                        Yeni Teklif Oluştur
+                                    </a>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <a href="create_invoice.php" class="btn btn-success w-100 py-3">
+                                        <i class="bi bi-receipt fs-4 d-block mb-2"></i>
+                                        Yeni Fatura Oluştur
+                                    </a>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <a href="add_customer.php" class="btn btn-info w-100 py-3">
+                                        <i class="bi bi-person-plus fs-4 d-block mb-2"></i>
+                                        Yeni Müşteri Ekle
+                                    </a>
+                                </div>
+                                <div class="col-md-3 mb-3">
+                                    <a href="add_product.php" class="btn btn-warning w-100 py-3">
+                                        <i class="bi bi-box-seam fs-4 d-block mb-2"></i>
+                                        Yeni Ürün Ekle
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <h1 class="h2 mb-4">Gösterge Paneli</h1>
 
             <!-- Genel İstatistikler -->
@@ -408,111 +447,6 @@ include 'includes/sidebar.php';
                 </div>
             </div>
 
-            <!-- Grafikler -->
-            <div class="row mb-4">
-                <!-- Teklif Sayısı Grafiği -->
-                <div class="col-md-6 mb-4">
-                    <div class="card card-dashboard h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Aylık Teklif Sayıları</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <canvas id="quotationCountChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Teklif Tutarı Grafiği -->
-                <div class="col-md-6 mb-4">
-                    <div class="card card-dashboard h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Aylık Teklif Tutarları</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <canvas id="quotationAmountChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="row mb-4">
-                <!-- Teklif Durumu Pasta Grafiği -->
-                <div class="col-md-4 mb-4">
-                    <div class="card card-dashboard h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">Teklif Durumları</h5>
-                        </div>
-                        <div class="card-body">
-                            <div class="chart-container">
-                                <canvas id="statusPieChart"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- En Çok Teklif Verilen Müşteriler -->
-                <div class="col-md-4 mb-4">
-                    <div class="card card-dashboard h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">En Çok Teklif Verilen Müşteriler</h5>
-                        </div>
-                        <div class="card-body">
-                            <?php if (count($topCustomers) > 0): ?>
-                                <ul class="list-group list-group-flush">
-                                    <?php foreach ($topCustomers as $customer): ?>
-                                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <a href="view_customer.php?id=<?php echo $customer['id']; ?>"
-                                                    class="text-decoration-none">
-                                                    <?php echo htmlspecialchars($customer['name']); ?>
-                                                </a>
-                                            </div>
-                                            <span class="badge bg-primary rounded-pill"><?php echo $customer['quote_count']; ?>
-                                                Teklif</span>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p class="text-center p-3">Henüz veri bulunmamaktadır.</p>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- En Çok Teklif Edilen Ürünler -->
-                <div class="col-md-4 mb-4">
-                    <div class="card card-dashboard h-100">
-                        <div class="card-header">
-                            <h5 class="card-title mb-0">En Çok Teklif Edilen Ürünler</h5>
-                        </div>
-                        <div class="card-body">
-                            <?php if (count($topProducts) > 0): ?>
-                                <ul class="list-group list-group-flush">
-                                    <?php foreach ($topProducts as $product): ?>
-                                        <li class="list-group-item d-flex justify-content-between align-items-center">
-                                            <div>
-                                                <a href="view_product.php?id=<?php echo $product['id']; ?>"
-                                                    class="text-decoration-none">
-                                                    <?php echo htmlspecialchars($product['code'] . ' - ' . $product['name']); ?>
-                                                </a>
-                                            </div>
-                                            <span class="badge bg-info rounded-pill"><?php echo $product['total_quantity']; ?>
-                                                Adet</span>
-                                        </li>
-                                    <?php endforeach; ?>
-                                </ul>
-                            <?php else: ?>
-                                <p class="text-center p-3">Henüz veri bulunmamaktadır.</p>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <div class="row mb-4">
                 <!-- Son Teklifler -->
                 <div class="col-md-6 mb-4">
@@ -643,44 +577,112 @@ include 'includes/sidebar.php';
                 </div>
             </div>
 
-            <!-- Hızlı Erişim -->
+            <!-- Grafikler -->
             <div class="row mb-4">
-                <div class="col-12">
-                    <div class="card card-dashboard">
+                <!-- Teklif Sayısı Grafiği -->
+                <div class="col-md-6 mb-4">
+                    <div class="card card-dashboard h-100">
                         <div class="card-header">
-                            <h5 class="card-title mb-0">Hızlı Erişim</h5>
+                            <h5 class="card-title mb-0">Aylık Teklif Sayıları</h5>
                         </div>
                         <div class="card-body">
-                            <div class="row">
-                                <div class="col-md-3 mb-3">
-                                    <a href="new_quotation.php" class="btn btn-primary w-100 py-3">
-                                        <i class="bi bi-file-earmark-plus fs-4 d-block mb-2"></i>
-                                        Yeni Teklif Oluştur
-                                    </a>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <a href="create_invoice.php" class="btn btn-success w-100 py-3">
-                                        <i class="bi bi-receipt fs-4 d-block mb-2"></i>
-                                        Yeni Fatura Oluştur
-                                    </a>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <a href="add_customer.php" class="btn btn-info w-100 py-3">
-                                        <i class="bi bi-person-plus fs-4 d-block mb-2"></i>
-                                        Yeni Müşteri Ekle
-                                    </a>
-                                </div>
-                                <div class="col-md-3 mb-3">
-                                    <a href="add_product.php" class="btn btn-warning w-100 py-3">
-                                        <i class="bi bi-box-seam fs-4 d-block mb-2"></i>
-                                        Yeni Ürün Ekle
-                                    </a>
-                                </div>
+                            <div class="chart-container">
+                                <canvas id="quotationCountChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Teklif Tutarı Grafiği -->
+                <div class="col-md-6 mb-4">
+                    <div class="card card-dashboard h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Aylık Teklif Tutarları</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="quotationAmountChart"></canvas>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <div class="row mb-4">
+                <!-- Teklif Durumu Pasta Grafiği -->
+                <div class="col-md-4 mb-4">
+                    <div class="card card-dashboard h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Teklif Durumları</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="chart-container">
+                                <canvas id="statusPieChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- En Çok Teklif Verilen Müşteriler -->
+                <div class="col-md-4 mb-4">
+                    <div class="card card-dashboard h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">En Çok Teklif Verilen Müşteriler</h5>
+                        </div>
+                        <div class="card-body">
+                            <?php if (count($topCustomers) > 0): ?>
+                                <ul class="list-group list-group-flush">
+                                    <?php foreach ($topCustomers as $customer): ?>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <a href="view_customer.php?id=<?php echo $customer['id']; ?>"
+                                                    class="text-decoration-none">
+                                                    <?php echo htmlspecialchars($customer['name']); ?>
+                                                </a>
+                                            </div>
+                                            <span class="badge bg-primary rounded-pill"><?php echo $customer['quote_count']; ?>
+                                                Teklif</span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php else: ?>
+                                <p class="text-center p-3">Henüz veri bulunmamaktadır.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- En Çok Teklif Edilen Ürünler -->
+                <div class="col-md-4 mb-4">
+                    <div class="card card-dashboard h-100">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">En Çok Teklif Edilen Ürünler</h5>
+                        </div>
+                        <div class="card-body">
+                            <?php if (count($topProducts) > 0): ?>
+                                <ul class="list-group list-group-flush">
+                                    <?php foreach ($topProducts as $product): ?>
+                                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <a href="view_product.php?id=<?php echo $product['id']; ?>"
+                                                    class="text-decoration-none">
+                                                    <?php echo htmlspecialchars($product['code'] . ' - ' . $product['name']); ?>
+                                                </a>
+                                            </div>
+                                            <span class="badge bg-info rounded-pill"><?php echo $product['total_quantity']; ?>
+                                                Adet</span>
+                                        </li>
+                                    <?php endforeach; ?>
+                                </ul>
+                            <?php else: ?>
+                                <p class="text-center p-3">Henüz veri bulunmamaktadır.</p>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            
         </div>
     </div>
 

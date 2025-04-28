@@ -33,6 +33,7 @@ $customer = null;
 $user = null;
 $settings = [];
 $emailSettings = [];
+$isOwner = false; // Kullanıcının teklifin sahibi olup olmadığını kontrol etmek için
 
 try {
     $stmt = $conn->prepare("
@@ -72,7 +73,10 @@ try {
         'name' => $quotation['user_name'],
         'email' => $quotation['user_email']
     ];
-
+    
+    // Kullanıcı admin mi veya teklifin sahibi mi kontrol et
+    $isOwner = ($_SESSION['user_id'] == $quotation['user_id']);
+    $isAdmin = isAdmin();
 
     // Teklif kalemlerini al
     $stmt = $conn->prepare("
@@ -257,7 +261,7 @@ include 'includes/sidebar.php';
 
                 <!-- İşlem Butonları -->
                 <div class="action-buttons">
-                    <?php if (in_array($quotation['status'], ['draft', 'sent'])): // Sadece taslak/gönderildi düzenlenebilir ?>
+                    <?php if ((in_array($quotation['status'], ['draft', 'sent'])) && ($isOwner || $isAdmin)): // Sadece taslak/gönderildi düzenlenebilir ve kullanıcı sahibi veya admin ise ?>
                          <a href="edit_quotation.php?id=<?php echo $quotation_id; ?>" class="btn btn-warning">
                             <i class="bi bi-pencil"></i> Düzenle
                         </a>
@@ -275,6 +279,8 @@ include 'includes/sidebar.php';
                     <a href="<?php echo $mailtoLink; ?>" class="btn btn-info" title="Varsayılan e-posta programınızı açar. PDF dosyasını manuel olarak eklemelisiniz.">
                         <i class="bi bi-envelope"></i> E-posta Taslağı Oluştur
                     </a>
+                    
+                    <?php if ($isOwner || $isAdmin): // Kullanıcı sahibi veya admin ise durum değiştirme ve silme butonlarını göster ?>
                     <div class="btn-group">
                         <button type="button" class="btn btn-secondary dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-arrow-down-up"></i> Durum Değiştir
@@ -287,9 +293,10 @@ include 'includes/sidebar.php';
                             <li><a class="dropdown-item <?php echo $quotation['status'] == 'expired' ? 'active' : ''; ?>" href="quotations.php?updateStatus=<?php echo $quotation_id; ?>&status=expired">Süresi Doldu</a></li>
                         </ul>
                     </div>
-                     <a href="javascript:void(0);" onclick="confirmDelete(<?php echo $quotation['id']; ?>, '<?php echo htmlspecialchars(addslashes($quotation['reference_no'])); ?>')" class="btn btn-danger" title="Sil">
+                    <a href="javascript:void(0);" onclick="confirmDelete(<?php echo $quotation['id']; ?>, '<?php echo htmlspecialchars(addslashes($quotation['reference_no'])); ?>')" class="btn btn-danger" title="Sil">
                         <i class="bi bi-trash"></i> Sil
-                     </a>
+                    </a>
+                    <?php endif; ?>
                 </div>
 
                 <div class="row">
