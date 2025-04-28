@@ -1,0 +1,39 @@
+# Composer dependencies
+/vendor/
+/uploads/
+
+# Environment variables file (varsa)
+.env
+
+config/database.php 
+
+# Log files
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Editor directories and files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Build results
+/build/
+/dist/
+
+# MAMP / Local server files (varsa)
+.DS_Store
+Thumbs.db
+Desktop.ini
