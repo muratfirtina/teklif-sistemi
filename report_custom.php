@@ -22,14 +22,6 @@ $reportColumns = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Form verilerini al
     $reportType = $_POST['report_type'];
-    
-    // Check if non-admin user tries to access user reports
-    if ($reportType == 'users' && !isAdmin()) {
-        setMessage('error', 'Kullanıcı raporlarına erişim izniniz bulunmamaktadır.');
-        header("Location: report_custom.php");
-        exit;
-    }
-    
     $dateFrom = $_POST['date_from'] ?? '';
     $dateTo = $_POST['date_to'] ?? '';
     $customerID = isset($_POST['customer_id']) && is_numeric($_POST['customer_id']) ? intval($_POST['customer_id']) : 0;
@@ -205,23 +197,150 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             break;
     }
     
+    // Gruplama ekle - Önce gruplama kontrolü yapılmalı
+    if (!empty($groupBy)) {
+        if (in_array($reportType, ['quotations', 'invoices']) && $groupBy == 'customer') {
+            // Müşteriye göre gruplanmış raporlar için SELECT listesini değiştir
+            if ($reportType == 'quotations') {
+                $sql = "
+                    SELECT c.id, c.name as customer_name, c.contact_person, c.email as customer_email,
+                           COUNT(q.id) as count, 
+                           SUM(q.total_amount) as total_amount,
+                           MAX(q.date) as date,
+                           GROUP_CONCAT(q.status) as status_list,
+                           GROUP_CONCAT(DISTINCT u.full_name) as user_fullname
+                    FROM quotations q 
+                    JOIN customers c ON q.customer_id = c.id
+                    JOIN users u ON q.user_id = u.id
+                    WHERE 1=1
+                ";
+                
+                $reportColumns = [
+                    'customer_name' => 'Müşteri',
+                    'count' => 'Teklif Sayısı',
+                    'total_amount' => 'Toplam Tutar',
+                    'user_fullname' => 'Sorumlu Kişi'
+                ];
+            } elseif ($reportType == 'invoices') {
+                $sql = "
+                    SELECT c.id, c.name as customer_name, c.contact_person, c.email as customer_email,
+                           COUNT(i.id) as count, 
+                           SUM(i.total_amount) as total_amount,
+                           MAX(i.date) as date,
+                           GROUP_CONCAT(i.status) as status_list
+                    FROM invoices i 
+                    JOIN quotations q ON i.quotation_id = q.id
+                    JOIN customers c ON q.customer_id = c.id
+                    WHERE 1=1
+                ";
+                
+                $reportColumns = [
+                    'customer_name' => 'Müşteri',
+                    'count' => 'Fatura Sayısı',
+                    'total_amount' => 'Toplam Tutar'
+                ];
+            }
+        } elseif (in_array($reportType, ['quotations']) && $groupBy == 'user') {
+            // Kullanıcıya göre gruplanmış raporlar için SELECT listesini değiştir
+            $sql = "
+                SELECT u.id, u.username, u.full_name as user_fullname, u.email,
+                       COUNT(q.id) as count, 
+                       SUM(q.total_amount) as total_amount,
+                       MAX(q.date) as date,
+                       GROUP_CONCAT(DISTINCT c.name) as customer_names,
+                       GROUP_CONCAT(q.status) as status_list
+                FROM quotations q 
+                JOIN customers c ON q.customer_id = c.id
+                JOIN users u ON q.user_id = u.id
+                WHERE 1=1
+            ";
+            
+            $reportColumns = [
+                'user_fullname' => 'Kullanıcı',
+                'count' => 'Teklif Sayısı',
+                'total_amount' => 'Toplam Tutar',
+                'customer_names' => 'Müşteriler'
+            ];
+        } elseif (in_array($reportType, ['quotations', 'invoices']) && $groupBy == 'month') {
+            if ($reportType == 'quotations') {
+                $sql = "
+                    SELECT YEAR(q.date) as year, MONTH(q.date) as month, 
+                           CONCAT(MONTHNAME(q.date), ' ', YEAR(q.date)) as period,
+                           COUNT(q.id) as count, 
+                           SUM(q.total_amount) as total_amount,
+                           GROUP_CONCAT(q.status) as status_list,
+                           COUNT(DISTINCT c.id) as customer_count,
+                           COUNT(DISTINCT u.id) as user_count
+                    FROM quotations q 
+                    JOIN customers c ON q.customer_id = c.id
+                    JOIN users u ON q.user_id = u.id
+                    WHERE 1=1
+                ";
+                
+                $reportColumns = [
+                    'period' => 'Dönem',
+                    'count' => 'Teklif Sayısı',
+                    'total_amount' => 'Toplam Tutar',
+                    'customer_count' => 'Müşteri Sayısı',
+                    'user_count' => 'Kullanıcı Sayısı'
+                ];
+            } else {
+                $sql = "
+                    SELECT YEAR(i.date) as year, MONTH(i.date) as month, 
+                           CONCAT(MONTHNAME(i.date), ' ', YEAR(i.date)) as period,
+                           COUNT(i.id) as count, 
+                           SUM(i.total_amount) as total_amount,
+                           GROUP_CONCAT(i.status) as status_list,
+                           COUNT(DISTINCT c.id) as customer_count
+                    FROM invoices i 
+                    JOIN quotations q ON i.quotation_id = q.id
+                    JOIN customers c ON q.customer_id = c.id
+                    WHERE 1=1
+                ";
+                
+                $reportColumns = [
+                    'period' => 'Dönem',
+                    'count' => 'Fatura Sayısı',
+                    'total_amount' => 'Toplam Tutar',
+                    'customer_count' => 'Müşteri Sayısı'
+                ];
+            }
+        }
+    }
+    
     // Tarih filtresi ekle
     if (!empty($dateFrom)) {
         if (in_array($reportType, ['quotations'])) {
-            $sql .= " AND q.date >= :date_from";
+            if ($groupBy == 'month' || $groupBy == 'user' || $groupBy == 'customer') {
+                $sql .= " AND q.date >= :date_from";
+            } else {
+                $sql .= " AND q.date >= :date_from";
+            }
             $params[':date_from'] = $dateFrom;
         } elseif (in_array($reportType, ['invoices'])) {
-            $sql .= " AND i.date >= :date_from";
+            if ($groupBy == 'month' || $groupBy == 'customer') {
+                $sql .= " AND i.date >= :date_from";
+            } else {
+                $sql .= " AND i.date >= :date_from";
+            }
             $params[':date_from'] = $dateFrom;
         }
     }
     
     if (!empty($dateTo)) {
         if (in_array($reportType, ['quotations'])) {
-            $sql .= " AND q.date <= :date_to";
+            if ($groupBy == 'month' || $groupBy == 'user' || $groupBy == 'customer') {
+                $sql .= " AND q.date <= :date_to";
+            } else {
+                $sql .= " AND q.date <= :date_to";
+            }
             $params[':date_to'] = $dateTo;
         } elseif (in_array($reportType, ['invoices'])) {
-            $sql .= " AND i.date <= :date_to";
+            if ($groupBy == 'month' || $groupBy == 'customer') {
+                $sql .= " AND i.date <= :date_to";
+            } else {
+                $sql .= " AND i.date <= :date_to";
+            }
             $params[':date_to'] = $dateTo;
         }
     }
@@ -295,17 +414,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         }
     }
     
-    // Gruplama ekle
+    // Gruplama ekle - GROUP BY cümlecikleri
     if (!empty($groupBy)) {
         if (in_array($reportType, ['quotations', 'invoices']) && $groupBy == 'customer') {
-            $sql .= " GROUP BY c.id";
+            $sql .= " GROUP BY c.id, c.name, c.contact_person, c.email";
         } elseif (in_array($reportType, ['quotations']) && $groupBy == 'user') {
-            $sql .= " GROUP BY u.id";
+            $sql .= " GROUP BY u.id, u.username, u.full_name, u.email";
         } elseif (in_array($reportType, ['quotations', 'invoices']) && $groupBy == 'month') {
             if ($reportType == 'quotations') {
-                $sql .= " GROUP BY YEAR(q.date), MONTH(q.date)";
+                $sql .= " GROUP BY YEAR(q.date), MONTH(q.date), period";
             } else {
-                $sql .= " GROUP BY YEAR(i.date), MONTH(i.date)";
+                $sql .= " GROUP BY YEAR(i.date), MONTH(i.date), period";
             }
         } else {
             // Varsayılan gruplama
@@ -334,9 +453,23 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     
     // Sıralama ekle
     if (in_array($reportType, ['quotations'])) {
-        $sql .= " ORDER BY q.date DESC";
+        if ($groupBy == 'customer') {
+            $sql .= " ORDER BY customer_name ASC";
+        } elseif ($groupBy == 'user') {
+            $sql .= " ORDER BY user_fullname ASC";
+        } elseif ($groupBy == 'month') {
+            $sql .= " ORDER BY year DESC, month DESC";
+        } else {
+            $sql .= " ORDER BY q.date DESC";
+        }
     } elseif (in_array($reportType, ['invoices'])) {
-        $sql .= " ORDER BY i.date DESC";
+        if ($groupBy == 'customer') {
+            $sql .= " ORDER BY customer_name ASC";
+        } elseif ($groupBy == 'month') {
+            $sql .= " ORDER BY year DESC, month DESC";
+        } else {
+            $sql .= " ORDER BY i.date DESC";
+        }
     } elseif ($reportType == 'customers') {
         $sql .= " ORDER BY c.name ASC";
     } elseif ($reportType == 'products') {
@@ -346,6 +479,12 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
     } elseif ($reportType == 'users') {
         $sql .= " ORDER BY u.username ASC";
     }
+
+    // Debug - SQL ve parametreleri göster
+    // echo "SQL: " . $sql;
+    // echo "<pre>";
+    // print_r($params);
+    // echo "</pre>";
     
     // Rapor verilerini al
     try {
@@ -625,9 +764,6 @@ include 'includes/sidebar.php';
                                     </div>
                                 </div>
                             </div>
-                            
-                            <!-- Kullanıcı Performansı (Sadece Admin) -->
-                            <?php if (isAdmin()): // Only show users report option to admin users ?>
                             <div class="col-md-2 mb-3">
                                 <div class="card report-card h-100 text-center">
                                     <div class="card-body">
@@ -639,7 +775,6 @@ include 'includes/sidebar.php';
                                     </div>
                                 </div>
                             </div>
-                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -785,85 +920,35 @@ include 'includes/sidebar.php';
                     <?php if (count($reportData) > 0): ?>
                         <div class="table-responsive">
                             <table class="table table-hover table-striped">
-                                <thead>
+                            <thead>
+                                <tr>
+                                    <?php foreach ($reportColumns as $key => $label): ?>
+                                        <th><?php echo $label; ?></th>
+                                    <?php endforeach; ?>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($reportData as $data): ?>
                                     <tr>
                                         <?php foreach ($reportColumns as $key => $label): ?>
-                                            <th><?php echo $label; ?></th>
+                                            <td>
+                                                <?php 
+                                                if (isset($data[$key])) {
+                                                    if (in_array($key, ['total_amount', 'paid_amount', 'count'])) {
+                                                        echo number_format($data[$key], 2, ',', '.');
+                                                    } else {
+                                                        echo htmlspecialchars($data[$key]);
+                                                    }
+                                                } else {
+                                                    echo '-';
+                                                }
+                                                ?>
+                                            </td>
                                         <?php endforeach; ?>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    <?php foreach ($reportData as $data): ?>
-                                        <tr>
-                                            <?php foreach ($reportColumns as $key => $label): ?>
-                                                <td>
-                                                    <?php
-                                                    if (in_array($key, ['total_amount', 'paid_amount', 'subtotal', 'tax_amount', 'discount_amount', 'price', 'total_quotation_amount', 'accepted_amount', 'rejected_amount'])) {
-                                                        // Para birimi formatı
-                                                        echo number_format($data[$key] ?? 0, 2, ',', '.') . ' ₺';
-                                                    } elseif (in_array($key, ['date', 'valid_until', 'due_date']) && !empty($data[$key])) {
-                                                        // Tarih formatı
-                                                        echo date('d.m.Y', strtotime($data[$key]));
-                                                    } elseif ($key == 'status') {
-                                                        // Durum çevirisi
-                                                        $statusText = '';
-                                                        switch($data[$key]) {
-                                                            case 'draft':
-                                                                $statusClass = 'secondary';
-                                                                $statusText = 'Taslak';
-                                                                break;
-                                                            case 'sent':
-                                                                $statusClass = 'primary';
-                                                                $statusText = 'Gönderildi';
-                                                                break;
-                                                            case 'accepted':
-                                                                $statusClass = 'success';
-                                                                $statusText = 'Kabul Edildi';
-                                                                break;
-                                                            case 'rejected':
-                                                                $statusClass = 'danger';
-                                                                $statusText = 'Reddedildi';
-                                                                break;
-                                                            case 'expired':
-                                                                $statusClass = 'warning';
-                                                                $statusText = 'Süresi Doldu';
-                                                                break;
-                                                            case 'unpaid':
-                                                                $statusClass = 'danger';
-                                                                $statusText = 'Ödenmedi';
-                                                                break;
-                                                            case 'partially_paid':
-                                                                $statusClass = 'warning';
-                                                                $statusText = 'Kısmi Ödendi';
-                                                                break;
-                                                            case 'paid':
-                                                                $statusClass = 'success';
-                                                                $statusText = 'Ödendi';
-                                                                break;
-                                                            case 'cancelled':
-                                                                $statusClass = 'secondary';
-                                                                $statusText = 'İptal Edildi';
-                                                                break;
-                                                            default:
-                                                                $statusClass = 'secondary';
-                                                                $statusText = $data[$key];
-                                                        }
-                                                        echo '<span class="badge bg-' . $statusClass . '">' . $statusText . '</span>';
-                                                    } elseif ($key == 'role') {
-                                                        // Rol çevirisi
-                                                        echo $data[$key] == 'admin' ? 'Yönetici' : 'Kullanıcı';
-                                                    } else {
-                                                        // Normal değer
-                                                        echo htmlspecialchars($data[$key] ?? '');
-                                                    }
-                                                    ?>
-                                                </td>
-                                            <?php endforeach; ?>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                </tbody>
-                            </table>
-                        </div>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
                     <?php else: ?>
                         <div class="alert alert-info">Hiç kayıt bulunamadı.</div>
                     <?php endif; ?>
@@ -873,139 +958,123 @@ include 'includes/sidebar.php';
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        const reportForm = document.getElementById('reportForm');
-        const reportTypeInput = document.getElementById('report_type');
-        const filterContainer = document.getElementById('filterContainer');
-        const reportFilterTitle = document.getElementById('reportFilterTitle');
-        const exportBtn = document.getElementById('exportBtn');
-        const resetBtn = document.getElementById('resetBtn');
-        
-        // Rapor türü seçme butonları
-        document.querySelectorAll('.select-report-type').forEach(button => {
-            button.addEventListener('click', function() {
-                const reportType = this.getAttribute('data-report-type');
-                reportTypeInput.value = reportType;
-                
-                // Filtre başlığını güncelle
-                let reportTitle = '';
-                switch(reportType) {
-                    case 'quotations':
-                        reportTitle = 'Teklif Raporu';
-                        break;
-                    case 'invoices':
-                        reportTitle = 'Fatura Raporu';
-                        break;
-                    case 'customers':
-                        reportTitle = 'Müşteri Raporu';
-                        break;
-                    case 'products':
-                        reportTitle = 'Ürün Raporu';
-                        break;
-                    case 'services':
-                        reportTitle = 'Hizmet Raporu';
-                        break;
-                    case 'users':
-                        reportTitle = 'Kullanıcı Raporu';
-                        break;
-                }
-                reportFilterTitle.textContent = reportTitle + ' Filtreleri';
-                
-                // Filtreleri göster/gizle
-                filterContainer.style.display = 'block';
-                
-                // Tüm filtreleri önce gizle
-                document.querySelectorAll('.date-filter, .customer-filter, .user-filter, .product-filter, .service-filter, .status-filter, .amount-filter, .group-filter').forEach(elem => {
-                    elem.style.display = 'none';
-                });
-                
-                // İlgili filtreleri göster
-                if (['quotations', 'invoices'].includes(reportType)) {
-                    document.querySelectorAll('.date-filter, .customer-filter, .status-filter, .amount-filter').forEach(elem => {
-                        elem.style.display = 'block';
-                    });
+document.addEventListener('DOMContentLoaded', function() {
+    // Rapor türü seçimi
+    const reportTypeButtons = document.querySelectorAll('.select-report-type');
+    const filterContainer = document.getElementById('filterContainer');
+    const reportTypeInput = document.getElementById('report_type');
+    const resetBtn = document.getElementById('resetBtn');
+    const exportBtn = document.getElementById('exportBtn');
+    const reportForm = document.getElementById('reportForm');
+    
+    reportTypeButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const reportType = this.getAttribute('data-report-type');
+            reportTypeInput.value = reportType;
+            filterContainer.style.display = 'block';
+            
+            // Seçili rapor türüne göre filtreleri düzenle
+            const customerFilter = document.querySelector('.customer-filter');
+            const userFilter = document.querySelector('.user-filter');
+            const productFilter = document.querySelector('.product-filter');
+            const serviceFilter = document.querySelector('.service-filter');
+            const statusFilter = document.querySelector('.status-filter');
+            const amountFilter = document.querySelector('.amount-filter');
+            const dateFilter = document.querySelector('.date-filter');
+            const groupFilter = document.querySelector('.group-filter');
+            const quotationStatus = document.querySelector('.quotation-status');
+            const invoiceStatus = document.querySelector('.invoice-status');
+            const customerGroup = document.querySelector('.customer-group');
+            const userGroup = document.querySelector('.user-group');
+            const monthGroup = document.querySelector('.month-group');
+            
+            // Tüm filtreleri sıfırla
+            customerFilter.style.display = 'none';
+            userFilter.style.display = 'none';
+            productFilter.style.display = 'none';
+            serviceFilter.style.display = 'none';
+            statusFilter.style.display = 'none';
+            amountFilter.style.display = 'none';
+            dateFilter.style.display = 'none';
+            groupFilter.style.display = 'none';
+            quotationStatus.style.display = 'none';
+            invoiceStatus.style.display = 'none';
+            customerGroup.style.display = 'none';
+            userGroup.style.display = 'none';
+            monthGroup.style.display = 'none';
+            
+            // Rapor türüne göre filtreleri göster
+            switch(reportType) {
+                case 'quotations':
+                    customerFilter.style.display = 'block';
+                    userFilter.style.display = 'block';
+                    statusFilter.style.display = 'block';
+                    amountFilter.style.display = 'block';
+                    dateFilter.style.display = 'block';
+                    groupFilter.style.display = 'block';
+                    quotationStatus.style.display = 'block';
+                    customerGroup.style.display = 'block';
+                    userGroup.style.display = 'block';
+                    monthGroup.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Teklif Raporu Filtreleri';
+                    break;
                     
-                    // Teklif/Fatura durumları
-                    if (reportType === 'quotations') {
-                        document.querySelector('.quotation-status').style.display = 'block';
-                        document.querySelector('.invoice-status').style.display = 'none';
-                        document.querySelector('.user-filter').style.display = 'block';
-                    } else {
-                        document.querySelector('.quotation-status').style.display = 'none';
-                        document.querySelector('.invoice-status').style.display = 'block';
-                    }
+                case 'invoices':
+                    customerFilter.style.display = 'block';
+                    statusFilter.style.display = 'block';
+                    amountFilter.style.display = 'block';
+                    dateFilter.style.display = 'block';
+                    groupFilter.style.display = 'block';
+                    invoiceStatus.style.display = 'block';
+                    customerGroup.style.display = 'block';
+                    monthGroup.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Fatura Raporu Filtreleri';
+                    break;
                     
-                    // Gruplama seçenekleri
-                    document.querySelector('.group-filter').style.display = 'block';
-                    document.querySelectorAll('.customer-group, .month-group').forEach(elem => {
-                        elem.style.display = 'block';
-                    });
+                case 'customers':
+                    customerFilter.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Müşteri Raporu Filtreleri';
+                    break;
                     
-                    if (reportType === 'quotations') {
-                        document.querySelector('.user-group').style.display = 'block';
-                    } else {
-                        document.querySelector('.user-group').style.display = 'none';
-                    }
-                }
-                
-                if (reportType === 'customers') {
-                    // Müşteri raporunda farklı filtreler
-                    document.querySelectorAll('.date-filter').forEach(elem => {
-                        elem.style.display = 'none';
-                    });
-                }
-                
-                if (reportType === 'products') {
-                    // Ürün raporunda farklı filtreler
-                    document.querySelector('.product-filter').style.display = 'block';
-                }
-                
-                if (reportType === 'services') {
-                    // Hizmet raporunda farklı filtreler
-                    document.querySelector('.service-filter').style.display = 'block';
-                }
-                
-                if (reportType === 'users') {
-                    // Kullanıcı raporunda farklı filtreler
-                    document.querySelector('.user-filter').style.display = 'block';
-                }
-                
-                // Butonları aktifleştir
-                document.getElementById('generateBtn').disabled = false;
-                exportBtn.disabled = false;
-            });
-        });
-        
-        // Excel'e aktar butonuna tıklama
-        exportBtn.addEventListener('click', function() {
-            document.getElementById('export').value = 'excel';
-            reportForm.submit();
-        });
-        
-        // Filtreleri sıfırla
-        resetBtn.addEventListener('click', function() {
-            document.getElementById('date_from').value = '';
-            document.getElementById('date_to').value = '';
-            document.getElementById('customer_id').value = '0';
-            document.getElementById('user_id').value = '0';
-            document.getElementById('product_id').value = '0';
-            document.getElementById('service_id').value = '0';
-            document.getElementById('status').value = '';
-            document.getElementById('min_amount').value = '';
-            document.getElementById('max_amount').value = '';
-            document.getElementById('group_by').value = '';
-        });
-        
-        // Sayfaya ilk yüklendiğinde formun gönderilmesini engelle
-        reportForm.addEventListener('submit', function(e) {
-            if (reportTypeInput.value === '') {
-                e.preventDefault();
-                alert('Lütfen bir rapor türü seçin.');
+                case 'products':
+                    productFilter.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Ürün Raporu Filtreleri';
+                    break;
+                    
+                case 'services':
+                    serviceFilter.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Hizmet Raporu Filtreleri';
+                    break;
+                    
+                case 'users':
+                    userFilter.style.display = 'block';
+                    document.getElementById('reportFilterTitle').textContent = 'Kullanıcı Raporu Filtreleri';
+                    break;
             }
         });
     });
+    
+    // Sıfırla butonu
+    resetBtn.addEventListener('click', function() {
+        document.getElementById('date_from').value = '';
+        document.getElementById('date_to').value = '';
+        document.getElementById('customer_id').value = '0';
+        document.getElementById('user_id').value = '0';
+        document.getElementById('product_id').value = '0';
+        document.getElementById('service_id').value = '0';
+        document.getElementById('status').value = '';
+        document.getElementById('min_amount').value = '';
+        document.getElementById('max_amount').value = '';
+        document.getElementById('group_by').value = '';
+    });
+    
+    // Excel'e Aktar butonu
+    exportBtn.addEventListener('click', function() {
+        document.getElementById('export').value = 'excel';
+        reportForm.submit();
+    });
+});
 </script>
-</body>
-</html>
+
+<?php include 'includes/footer.php'; ?>
