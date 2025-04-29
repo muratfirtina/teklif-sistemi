@@ -62,6 +62,46 @@ try {
     exit;
 }
 
+// Add this code to edit_invoice.php after retrieving the invoice data
+// This should go right after the invoice data is retrieved from the database
+// and before any update operations
+
+// After retrieving the invoice data, add this permission check:
+try {
+    // Get the quotation's user_id to check ownership
+    $stmt = $conn->prepare("
+        SELECT q.user_id 
+        FROM quotations q
+        JOIN invoices i ON q.id = i.quotation_id
+        WHERE i.id = :invoice_id
+    ");
+    $stmt->bindParam(':invoice_id', $invoice_id);
+    $stmt->execute();
+    
+    if ($stmt->rowCount() == 0) {
+        setMessage('error', 'Fatura veya bağlı teklif bulunamadı.');
+        header("Location: invoices.php");
+        exit;
+    }
+    
+    $quotationUserId = $stmt->fetchColumn();
+    
+    // Only allow if user is the creator of the original quotation or an admin
+    $isAllowed = ($quotationUserId == $_SESSION['user_id']) || isAdmin();
+    
+    if (!$isAllowed) {
+        setMessage('error', 'Bu faturayı düzenleme yetkiniz bulunmamaktadır. Sadece faturanın dayandığı teklifi oluşturan kullanıcı veya yöneticiler düzenleyebilir.');
+        header("Location: invoices.php");
+        exit;
+    }
+    
+} catch(PDOException $e) {
+    setMessage('error', 'Yetki kontrolü sırasında bir hata oluştu: ' . $e->getMessage());
+    header("Location: invoices.php");
+    exit;
+}
+
+
 // Form gönderildi mi kontrol et
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Form verilerini al

@@ -9,11 +9,47 @@ requireLogin();
 // Veritabanı bağlantısı
 $conn = getDbConnection();
 
+// Kullanıcı yetki kontrolü - Belirli bir teklif için fatura oluşturma
+if(isset($_GET['quotation_id']) && is_numeric($_GET['quotation_id'])) {
+    $specificQuotationId = intval($_GET['quotation_id']);
+    
+    try {
+        $stmt = $conn->prepare("SELECT user_id, status FROM quotations WHERE id = :id");
+        $stmt->bindParam(':id', $specificQuotationId);
+        $stmt->execute();
+        
+        if ($stmt->rowCount() > 0) {
+            $quotationData = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Only allow if user is the creator of the quotation or an admin
+            $isAllowed = ($quotationData['user_id'] == $_SESSION['user_id']) || isAdmin();
+            
+            // Also check if the quotation status is 'accepted'
+            if ($quotationData['status'] != 'accepted') {
+                setMessage('error', 'Sadece kabul edilmiş teklifler için fatura oluşturulabilir.');
+                header("Location: quotations.php");
+                exit;
+            }
+            
+            // If user is not allowed, redirect
+            if (!$isAllowed) {
+                setMessage('error', 'Bu teklif için fatura oluşturma yetkiniz bulunmamaktadır. Sadece teklifi oluşturan kullanıcı veya yöneticiler fatura oluşturabilir.');
+                header("Location: quotations.php");
+                exit;
+            }
+        }
+    } catch(PDOException $e) {
+        setMessage('error', 'Teklif bilgileri alınırken bir hata oluştu: ' . $e->getMessage());
+        header("Location: quotations.php");
+        exit;
+    }
+}
+
 // Kabul edilen teklifleri getir
 $acceptedQuotations = [];
 try {
     $stmt = $conn->query("
-        SELECT q.id, q.reference_no, q.date, q.total_amount, c.name as customer_name
+        SELECT q.id, q.reference_no, q.date, q.total_amount, c.name as customer_name, q.user_id
         FROM quotations q
         JOIN customers c ON q.customer_id = c.id
         WHERE q.status = 'accepted'
@@ -21,12 +57,60 @@ try {
         ORDER BY q.date DESC
     ");
     $acceptedQuotations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Eğer kullanıcı admin değilse, sadece kendi tekliflerini göster
+    if (!isAdmin()) {
+        $userQuotations = [];
+        foreach ($acceptedQuotations as $quotation) {
+            if ($quotation['user_id'] == $_SESSION['user_id']) {
+                $userQuotations[] = $quotation;
+            }
+        }
+        $acceptedQuotations = $userQuotations;
+    }
 } catch(PDOException $e) {
     setMessage('error', 'Teklif listesi alınırken bir hata oluştu: ' . $e->getMessage());
 }
 
 // Form gönderildi mi kontrol et
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Kullanıcı yetki kontrolü - POST gönderimi için
+    if(isset($_POST['quotation_id']) && is_numeric($_POST['quotation_id'])) {
+        $quotationId = intval($_POST['quotation_id']);
+        
+        // First, retrieve the quotation to check ownership
+        try {
+            $stmt = $conn->prepare("SELECT user_id, status FROM quotations WHERE id = :id");
+            $stmt->bindParam(':id', $quotationId);
+            $stmt->execute();
+            
+            if ($stmt->rowCount() > 0) {
+                $quotationData = $stmt->fetch(PDO::FETCH_ASSOC);
+                
+                // Only allow if user is the creator of the quotation or an admin
+                $isAllowed = ($quotationData['user_id'] == $_SESSION['user_id']) || isAdmin();
+                
+                // Also check if the quotation status is 'accepted'
+                if ($quotationData['status'] != 'accepted') {
+                    setMessage('error', 'Sadece kabul edilmiş teklifler için fatura oluşturulabilir.');
+                    header("Location: quotations.php");
+                    exit;
+                }
+            }
+        } catch(PDOException $e) {
+            setMessage('error', 'Teklif bilgileri alınırken bir hata oluştu: ' . $e->getMessage());
+            header("Location: quotations.php");
+            exit;
+        }
+        
+        // If user is not allowed, redirect
+        if (!$isAllowed) {
+            setMessage('error', 'Bu teklif için fatura oluşturma yetkiniz bulunmamaktadır. Sadece teklifi oluşturan kullanıcı veya yöneticiler fatura oluşturabilir.');
+            header("Location: quotations.php");
+            exit;
+        }
+    }
+
     // Form verilerini al
     $quotationId = intval($_POST['quotation_id']);
     $invoiceDate = $_POST['invoice_date'];
@@ -178,9 +262,17 @@ include 'includes/sidebar.php';
                                 </div>
                                 <div class="card-body">
                                     <div class="row">
-                                        <?php foreach ($acceptedQuotations as $quotation): ?>
+                                        <?php 
+                                        // URL'den belirli bir teklif seçildiyse
+                                        $selectedQuotationId = isset($_GET['quotation_id']) ? intval($_GET['quotation_id']) : 0;
+                                        
+                                        foreach ($acceptedQuotations as $quotation): 
+                                            $isSelected = ($selectedQuotationId == $quotation['id']);
+                                        ?>
                                             <div class="col-md-6 mb-3">
-                                                <div class="card quotation-card" onclick="selectQuotation(this, <?php echo $quotation['id']; ?>)">
+                                                <div class="card quotation-card <?php echo $isSelected ? 'selected border-primary' : ''; ?>" 
+                                                     onclick="selectQuotation(this, <?php echo $quotation['id']; ?>)"
+                                                     style="<?php echo $isSelected ? 'border: 2px solid #0d6efd;' : ''; ?>">
                                                     <div class="card-body">
                                                         <div class="d-flex justify-content-between align-items-center mb-2">
                                                             <h5 class="card-title mb-0"><?php echo htmlspecialchars($quotation['reference_no']); ?></h5>
@@ -194,7 +286,7 @@ include 'includes/sidebar.php';
                                             </div>
                                         <?php endforeach; ?>
                                     </div>
-                                    <input type="hidden" id="quotation_id" name="quotation_id" value="">
+                                    <input type="hidden" id="quotation_id" name="quotation_id" value="<?php echo $selectedQuotationId; ?>">
                                 </div>
                             </div>
                         </div>
@@ -227,7 +319,7 @@ include 'includes/sidebar.php';
                                     </div>
                                     
                                     <div class="d-grid">
-                                        <button type="submit" class="btn btn-primary" id="submitBtn" disabled>Fatura Oluştur</button>
+                                        <button type="submit" class="btn btn-primary" id="submitBtn" <?php echo $selectedQuotationId > 0 ? '' : 'disabled'; ?>>Fatura Oluştur</button>
                                     </div>
                                 </div>
                             </div>
@@ -322,10 +414,12 @@ include 'includes/sidebar.php';
             // Önceki seçimi kaldır
             document.querySelectorAll('.quotation-card.selected').forEach(card => {
                 card.classList.remove('selected');
+                card.style.border = '';
             });
             
             // Yeni seçimi işaretle
             element.classList.add('selected');
+            element.style.border = '2px solid #0d6efd';
             
             // Gizli alana teklif ID'sini kaydet
             document.getElementById('quotation_id').value = quotationId;
@@ -343,4 +437,15 @@ include 'includes/sidebar.php';
                 alert('Lütfen bir teklif seçin.');
             }
         });
+        
+        // Sayfa yüklendiğinde URL'den gelen teklif ID'si varsa, o teklifi otomatik seç
+        document.addEventListener('DOMContentLoaded', function() {
+            const quotationId = <?php echo $selectedQuotationId ?: 0; ?>;
+            if (quotationId > 0) {
+                // Gönder butonunu etkinleştir
+                document.getElementById('submitBtn').disabled = false;
+            }
+        });
     </script>
+</body>
+</html> 

@@ -22,6 +22,14 @@ $reportColumns = [];
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     // Form verilerini al
     $reportType = $_POST['report_type'];
+    
+    // Check if non-admin user tries to access user reports
+    if ($reportType == 'users' && !isAdmin()) {
+        setMessage('error', 'Kullanıcı raporlarına erişim izniniz bulunmamaktadır.');
+        header("Location: report_custom.php");
+        exit;
+    }
+    
     $dateFrom = $_POST['date_from'] ?? '';
     $dateTo = $_POST['date_to'] ?? '';
     $customerID = isset($_POST['customer_id']) && is_numeric($_POST['customer_id']) ? intval($_POST['customer_id']) : 0;
@@ -617,6 +625,9 @@ include 'includes/sidebar.php';
                                     </div>
                                 </div>
                             </div>
+                            
+                            <!-- Kullanıcı Performansı (Sadece Admin) -->
+                            <?php if (isAdmin()): // Only show users report option to admin users ?>
                             <div class="col-md-2 mb-3">
                                 <div class="card report-card h-100 text-center">
                                     <div class="card-body">
@@ -628,6 +639,7 @@ include 'includes/sidebar.php';
                                     </div>
                                 </div>
                             </div>
+                            <?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -772,24 +784,86 @@ include 'includes/sidebar.php';
                 <div class="card-body">
                     <?php if (count($reportData) > 0): ?>
                         <div class="table-responsive">
-                            <table class="table table-hover table-striped"></table>
-                            <thead>
-                                <tr>
-                                    <?php foreach ($reportColumns as $key => $label): ?>
-                                        <th><?php echo $label; ?></th>
-                                    <?php endforeach; ?>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php foreach ($reportData as $data): ?>
+                            <table class="table table-hover table-striped">
+                                <thead>
                                     <tr>
                                         <?php foreach ($reportColumns as $key => $label): ?>
-                                            <td><?php echo htmlspecialchars($data[$key] ?? ''); ?></td>
+                                            <th><?php echo $label; ?></th>
                                         <?php endforeach; ?>
                                     </tr>
-                                <?php endforeach; ?>
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody>
+                                    <?php foreach ($reportData as $data): ?>
+                                        <tr>
+                                            <?php foreach ($reportColumns as $key => $label): ?>
+                                                <td>
+                                                    <?php
+                                                    if (in_array($key, ['total_amount', 'paid_amount', 'subtotal', 'tax_amount', 'discount_amount', 'price', 'total_quotation_amount', 'accepted_amount', 'rejected_amount'])) {
+                                                        // Para birimi formatı
+                                                        echo number_format($data[$key] ?? 0, 2, ',', '.') . ' ₺';
+                                                    } elseif (in_array($key, ['date', 'valid_until', 'due_date']) && !empty($data[$key])) {
+                                                        // Tarih formatı
+                                                        echo date('d.m.Y', strtotime($data[$key]));
+                                                    } elseif ($key == 'status') {
+                                                        // Durum çevirisi
+                                                        $statusText = '';
+                                                        switch($data[$key]) {
+                                                            case 'draft':
+                                                                $statusClass = 'secondary';
+                                                                $statusText = 'Taslak';
+                                                                break;
+                                                            case 'sent':
+                                                                $statusClass = 'primary';
+                                                                $statusText = 'Gönderildi';
+                                                                break;
+                                                            case 'accepted':
+                                                                $statusClass = 'success';
+                                                                $statusText = 'Kabul Edildi';
+                                                                break;
+                                                            case 'rejected':
+                                                                $statusClass = 'danger';
+                                                                $statusText = 'Reddedildi';
+                                                                break;
+                                                            case 'expired':
+                                                                $statusClass = 'warning';
+                                                                $statusText = 'Süresi Doldu';
+                                                                break;
+                                                            case 'unpaid':
+                                                                $statusClass = 'danger';
+                                                                $statusText = 'Ödenmedi';
+                                                                break;
+                                                            case 'partially_paid':
+                                                                $statusClass = 'warning';
+                                                                $statusText = 'Kısmi Ödendi';
+                                                                break;
+                                                            case 'paid':
+                                                                $statusClass = 'success';
+                                                                $statusText = 'Ödendi';
+                                                                break;
+                                                            case 'cancelled':
+                                                                $statusClass = 'secondary';
+                                                                $statusText = 'İptal Edildi';
+                                                                break;
+                                                            default:
+                                                                $statusClass = 'secondary';
+                                                                $statusText = $data[$key];
+                                                        }
+                                                        echo '<span class="badge bg-' . $statusClass . '">' . $statusText . '</span>';
+                                                    } elseif ($key == 'role') {
+                                                        // Rol çevirisi
+                                                        echo $data[$key] == 'admin' ? 'Yönetici' : 'Kullanıcı';
+                                                    } else {
+                                                        // Normal değer
+                                                        echo htmlspecialchars($data[$key] ?? '');
+                                                    }
+                                                    ?>
+                                                </td>
+                                            <?php endforeach; ?>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                        </div>
                     <?php else: ?>
                         <div class="alert alert-info">Hiç kayıt bulunamadı.</div>
                     <?php endif; ?>
@@ -798,3 +872,140 @@ include 'includes/sidebar.php';
         <?php endif; ?>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const reportForm = document.getElementById('reportForm');
+        const reportTypeInput = document.getElementById('report_type');
+        const filterContainer = document.getElementById('filterContainer');
+        const reportFilterTitle = document.getElementById('reportFilterTitle');
+        const exportBtn = document.getElementById('exportBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        
+        // Rapor türü seçme butonları
+        document.querySelectorAll('.select-report-type').forEach(button => {
+            button.addEventListener('click', function() {
+                const reportType = this.getAttribute('data-report-type');
+                reportTypeInput.value = reportType;
+                
+                // Filtre başlığını güncelle
+                let reportTitle = '';
+                switch(reportType) {
+                    case 'quotations':
+                        reportTitle = 'Teklif Raporu';
+                        break;
+                    case 'invoices':
+                        reportTitle = 'Fatura Raporu';
+                        break;
+                    case 'customers':
+                        reportTitle = 'Müşteri Raporu';
+                        break;
+                    case 'products':
+                        reportTitle = 'Ürün Raporu';
+                        break;
+                    case 'services':
+                        reportTitle = 'Hizmet Raporu';
+                        break;
+                    case 'users':
+                        reportTitle = 'Kullanıcı Raporu';
+                        break;
+                }
+                reportFilterTitle.textContent = reportTitle + ' Filtreleri';
+                
+                // Filtreleri göster/gizle
+                filterContainer.style.display = 'block';
+                
+                // Tüm filtreleri önce gizle
+                document.querySelectorAll('.date-filter, .customer-filter, .user-filter, .product-filter, .service-filter, .status-filter, .amount-filter, .group-filter').forEach(elem => {
+                    elem.style.display = 'none';
+                });
+                
+                // İlgili filtreleri göster
+                if (['quotations', 'invoices'].includes(reportType)) {
+                    document.querySelectorAll('.date-filter, .customer-filter, .status-filter, .amount-filter').forEach(elem => {
+                        elem.style.display = 'block';
+                    });
+                    
+                    // Teklif/Fatura durumları
+                    if (reportType === 'quotations') {
+                        document.querySelector('.quotation-status').style.display = 'block';
+                        document.querySelector('.invoice-status').style.display = 'none';
+                        document.querySelector('.user-filter').style.display = 'block';
+                    } else {
+                        document.querySelector('.quotation-status').style.display = 'none';
+                        document.querySelector('.invoice-status').style.display = 'block';
+                    }
+                    
+                    // Gruplama seçenekleri
+                    document.querySelector('.group-filter').style.display = 'block';
+                    document.querySelectorAll('.customer-group, .month-group').forEach(elem => {
+                        elem.style.display = 'block';
+                    });
+                    
+                    if (reportType === 'quotations') {
+                        document.querySelector('.user-group').style.display = 'block';
+                    } else {
+                        document.querySelector('.user-group').style.display = 'none';
+                    }
+                }
+                
+                if (reportType === 'customers') {
+                    // Müşteri raporunda farklı filtreler
+                    document.querySelectorAll('.date-filter').forEach(elem => {
+                        elem.style.display = 'none';
+                    });
+                }
+                
+                if (reportType === 'products') {
+                    // Ürün raporunda farklı filtreler
+                    document.querySelector('.product-filter').style.display = 'block';
+                }
+                
+                if (reportType === 'services') {
+                    // Hizmet raporunda farklı filtreler
+                    document.querySelector('.service-filter').style.display = 'block';
+                }
+                
+                if (reportType === 'users') {
+                    // Kullanıcı raporunda farklı filtreler
+                    document.querySelector('.user-filter').style.display = 'block';
+                }
+                
+                // Butonları aktifleştir
+                document.getElementById('generateBtn').disabled = false;
+                exportBtn.disabled = false;
+            });
+        });
+        
+        // Excel'e aktar butonuna tıklama
+        exportBtn.addEventListener('click', function() {
+            document.getElementById('export').value = 'excel';
+            reportForm.submit();
+        });
+        
+        // Filtreleri sıfırla
+        resetBtn.addEventListener('click', function() {
+            document.getElementById('date_from').value = '';
+            document.getElementById('date_to').value = '';
+            document.getElementById('customer_id').value = '0';
+            document.getElementById('user_id').value = '0';
+            document.getElementById('product_id').value = '0';
+            document.getElementById('service_id').value = '0';
+            document.getElementById('status').value = '';
+            document.getElementById('min_amount').value = '';
+            document.getElementById('max_amount').value = '';
+            document.getElementById('group_by').value = '';
+        });
+        
+        // Sayfaya ilk yüklendiğinde formun gönderilmesini engelle
+        reportForm.addEventListener('submit', function(e) {
+            if (reportTypeInput.value === '') {
+                e.preventDefault();
+                alert('Lütfen bir rapor türü seçin.');
+            }
+        });
+    });
+</script>
+</body>
+</html>

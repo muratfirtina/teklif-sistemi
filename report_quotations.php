@@ -351,8 +351,10 @@ foreach ($monthlyStats as $stat) {
 // Başarı oranı hesapla
 $successRate = ($totalCount > 0) ? round(($acceptedCount / $totalCount) * 100, 2) : 0;
 
+$needsChartJS = true; // Enable Chart.js
 $pageTitle = 'Teklif Raporları';
 $currentPage = 'reports';
+include 'includes/header.php';
 include 'includes/header.php';
 include 'includes/navbar.php';
 include 'includes/sidebar.php';
