@@ -12,6 +12,11 @@ function isAdmin() {
     return isset($_SESSION['user_role']) && $_SESSION['user_role'] == 'admin';
 }
 
+// Kullanıcının üretim rolüne sahip olup olmadığını kontrol eder
+function isProduction() {
+    return isset($_SESSION['user_role']) && $_SESSION['user_role'] == 'production';
+}
+
 // Giriş yapmamış kullanıcıları giriş sayfasına yönlendirir
 function requireLogin() {
     if (!isLoggedIn()) {
@@ -24,6 +29,16 @@ function requireLogin() {
 function requireAdmin() {
     requireLogin();
     if (!isAdmin()) {
+        $_SESSION['error'] = "Bu sayfaya erişim izniniz bulunmamaktadır.";
+        header("Location: index.php");
+        exit;
+    }
+}
+
+// Sadece üretim kullanıcılarının erişebileceği sayfalar için
+function requireProduction() {
+    requireLogin();
+    if (!isProduction() && !isAdmin()) {
         $_SESSION['error'] = "Bu sayfaya erişim izniniz bulunmamaktadır.";
         header("Location: index.php");
         exit;

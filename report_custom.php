@@ -143,7 +143,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             
             break;
             
-        case 'services':
+        // Hizmet raporu geçici olarak devre dışı bırakıldı
+        /*case 'services':
             $reportTitle = 'Hizmet Raporu';
             
             $sql = "
@@ -165,7 +166,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 'total_amount' => 'Toplam Satış Tutarı'
             ];
             
-            break;
+            break;*/
             
         case 'users':
             $reportTitle = 'Kullanıcı Raporu';
@@ -376,11 +377,11 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $params[':product_id'] = $productID;
     }
     
-    // Hizmet filtresi ekle
-    if ($serviceID > 0 && $reportType == 'services') {
+    // Hizmet filtresi ekle - Geçici olarak devre dışı bırakıldı
+    /*if ($serviceID > 0 && $reportType == 'services') {
         $sql .= " AND s.id = :service_id";
         $params[':service_id'] = $serviceID;
-    }
+    }*/
     
     // Durum filtresi ekle
     if (!empty($status)) {
@@ -432,8 +433,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                 $sql .= " GROUP BY c.id";
             } elseif ($reportType == 'products') {
                 $sql .= " GROUP BY p.id";
-            } elseif ($reportType == 'services') {
-                $sql .= " GROUP BY s.id";
+            /*} elseif ($reportType == 'services') {
+            $sql .= " GROUP BY s.id";*/
             } elseif ($reportType == 'users') {
                 $sql .= " GROUP BY u.id";
             }
@@ -444,8 +445,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $sql .= " GROUP BY c.id";
         } elseif ($reportType == 'products') {
             $sql .= " GROUP BY p.id";
-        } elseif ($reportType == 'services') {
-            $sql .= " GROUP BY s.id";
+        /*} elseif ($reportType == 'services') {
+            $sql .= " GROUP BY s.id";*/
         } elseif ($reportType == 'users') {
             $sql .= " GROUP BY u.id";
         }
@@ -474,8 +475,8 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $sql .= " ORDER BY c.name ASC";
     } elseif ($reportType == 'products') {
         $sql .= " ORDER BY p.name ASC";
-    } elseif ($reportType == 'services') {
-        $sql .= " ORDER BY s.name ASC";
+    /*} elseif ($reportType == 'services') {
+        $sql .= " ORDER BY s.name ASC";*/
     } elseif ($reportType == 'users') {
         $sql .= " ORDER BY u.username ASC";
     }
@@ -646,14 +647,14 @@ try {
     setMessage('error', 'Ürün listesi alınırken bir hata oluştu: ' . $e->getMessage());
 }
 
-// Hizmetleri getir (filtre için)
+// Hizmetleri getir (filtre için) - Geçici olarak devre dışı bırakıldı
 $services = [];
-try {
+/*try {
     $stmt = $conn->query("SELECT id, code, name FROM services ORDER BY name ASC");
     $services = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch(PDOException $e) {
     setMessage('error', 'Hizmet listesi alınırken bir hata oluştu: ' . $e->getMessage());
-}
+}*/
 
 $pageTitle = 'Özel Rapor Oluştur';
 $currentPage = 'reports';
@@ -753,7 +754,8 @@ include 'includes/sidebar.php';
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-2 mb-3">
+                            <!-- Hizmet kartı geçici olarak devre dışı bırakıldı -->
+                            <!--<div class="col-md-2 mb-3">
                                 <div class="card report-card h-100 text-center">
                                     <div class="card-body">
                                         <div class="report-icon text-danger">
@@ -763,7 +765,7 @@ include 'includes/sidebar.php';
                                         <button type="button" class="btn btn-sm btn-outline-danger mt-2 select-report-type" data-report-type="services">Seç</button>
                                     </div>
                                 </div>
-                            </div>
+                            </div>-->
                             <div class="col-md-2 mb-3">
                                 <div class="card report-card h-100 text-center">
                                     <div class="card-body">
@@ -839,8 +841,8 @@ include 'includes/sidebar.php';
                         </select>
                     </div>
                     
-                    <!-- Hizmet filtresi -->
-                    <div class="col-md-3 mb-3 service-filter" style="display: none;">
+                    <!-- Hizmet filtresi - Geçici olarak devre dışı bırakıldı -->
+                    <!--<div class="col-md-3 mb-3 service-filter" style="display: none;">
                         <label for="service_id" class="form-label">Hizmet</label>
                         <select class="form-select" id="service_id" name="service_id">
                             <option value="0">Tüm Hizmetler</option>
@@ -850,7 +852,7 @@ include 'includes/sidebar.php';
                                 </option>
                             <?php endforeach; ?>
                         </select>
-                    </div>
+                    </div>-->
                     
                     <!-- Durum filtresi -->
                     <div class="col-md-3 mb-3 status-filter">
@@ -1042,10 +1044,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.getElementById('reportFilterTitle').textContent = 'Ürün Raporu Filtreleri';
                     break;
                     
-                case 'services':
+                /*case 'services':
                     serviceFilter.style.display = 'block';
                     document.getElementById('reportFilterTitle').textContent = 'Hizmet Raporu Filtreleri';
-                    break;
+                    break;*/
                     
                 case 'users':
                     userFilter.style.display = 'block';

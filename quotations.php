@@ -61,51 +61,6 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     exit;
 }
 
-// Teklif durumunu güncelleme işlemi
-if (isset($_GET['updateStatus']) && is_numeric($_GET['updateStatus']) && isset($_GET['status'])) {
-    $id = $_GET['updateStatus'];
-    $status = $_GET['status'];
-
-    // Önce kullanıcının yetkisini kontrol et
-    $stmt = $conn->prepare("SELECT user_id FROM quotations WHERE id = :id");
-    $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-    $stmt->execute();
-
-    if ($stmt->rowCount() == 0) {
-        setMessage('error', 'Teklif bulunamadı.');
-        header("Location: quotations.php");
-        exit;
-    }
-
-    $quotation = $stmt->fetch(PDO::FETCH_ASSOC);
-
-    // Teklif durumunu sadece sahibi veya admin değiştirebilir
-    if ($quotation['user_id'] != $_SESSION['user_id'] && !isAdmin()) {
-        setMessage('error', 'Bu teklifin durumunu değiştirme yetkiniz bulunmamaktadır.');
-        header("Location: quotations.php");
-        exit;
-    }
-
-    // Geçerli statüs kontrolü
-    $validStatuses = ['draft', 'sent', 'accepted', 'rejected', 'expired'];
-    if (in_array($status, $validStatuses)) {
-        try {
-            $stmt = $conn->prepare("UPDATE quotations SET status = :status WHERE id = :id");
-            $stmt->bindParam(':status', $status);
-            $stmt->bindParam(':id', $id);
-            $stmt->execute();
-
-            setMessage('success', 'Teklif durumu başarıyla güncellendi.');
-        } catch (PDOException $e) {
-            setMessage('error', 'Teklif durumu güncellenirken bir hata oluştu: ' . $e->getMessage());
-        }
-    } else {
-        setMessage('error', 'Geçersiz teklif durumu.');
-    }
-
-    header("Location: quotations.php");
-    exit;
-}
 
 // Filtreler
 $customerFilter = isset($_GET['customer']) ? intval($_GET['customer']) : 0;
@@ -353,21 +308,14 @@ include 'includes/sidebar.php';
                                                     </button>
 
                                                     <ul class="dropdown-menu">
-                                                        <li><a class="dropdown-item"
-                                                                href="quotations.php?updateStatus=<?php echo $quotation['id']; ?>&status=draft">Taslak</a>
-                                                        </li>
-                                                        <li><a class="dropdown-item"
-                                                                href="quotations.php?updateStatus=<?php echo $quotation['id']; ?>&status=sent">Gönderildi</a>
-                                                        </li>
-                                                        <li><a class="dropdown-item"
-                                                                href="quotations.php?updateStatus=<?php echo $quotation['id']; ?>&status=accepted">Kabul
-                                                                Edildi</a></li>
-                                                        <li><a class="dropdown-item"
-                                                                href="quotations.php?updateStatus=<?php echo $quotation['id']; ?>&status=rejected">Reddedildi</a>
-                                                        </li>
-                                                        <li><a class="dropdown-item"
-                                                                href="quotations.php?updateStatus=<?php echo $quotation['id']; ?>&status=expired">Süresi
-                                                                Doldu</a></li>
+                                                        <?php foreach ($statusMap as $statusCode => $statusInfo): ?>
+                                                            <li>
+                                                                <a class="dropdown-item <?php echo $quotation['status'] == $statusCode ? 'active' : ''; ?>"
+                                                                    href="update_quotation_status.php?id=<?php echo $quotation['id']; ?>&status=<?php echo $statusCode; ?>&origin=list">
+                                                                    <?php echo $statusInfo['text']; ?>
+                                                                </a>
+                                                            </li>
+                                                        <?php endforeach; ?>
                                                     </ul>
                                                     <a href="javascript:void(0);"
                                                         onclick="confirmDelete(<?php echo $quotation['id']; ?>, '<?php echo htmlspecialchars(addslashes($quotation['reference_no'])); ?>')"

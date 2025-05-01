@@ -40,8 +40,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
                     $_SESSION['user_fullname'] = $user['full_name'];
                     $_SESSION['user_role'] = $user['role'];
                     
-                    // Kullanıcıyı ana sayfaya yönlendir
-                    header("Location: index.php");
+                    // Kullanıcıyı eğer admin veya user rolüne sahipse ana sayfaya yönlendir. production rolüne sahipse production sayfasına yönlendir.
+                    if ($user['role'] == 'admin' || $user['role'] == 'user') {
+                        header("Location: index.php");
+                    } elseif ($user['role'] == 'production') {
+                        header("Location: production.php");
+                    } else {
+                        $error = "Geçersiz kullanıcı rolü.";
+                    }
                     exit;
                 } else {
                     $error = "Geçersiz kullanıcı adı veya şifre.";

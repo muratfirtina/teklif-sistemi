@@ -21,22 +21,22 @@ try {
     $stmt = $conn->prepare("SELECT user_id FROM quotations WHERE id = :id");
     $stmt->bindParam(':id', $id);
     $stmt->execute();
-    
+
     if ($stmt->rowCount() == 0) {
         setMessage('error', 'Teklif bulunamadı.');
         header("Location: quotations.php");
         exit;
     }
-    
+
     $quotationCheck = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // Teklifi sadece sahibi veya admin düzenleyebilir
     if ($quotationCheck['user_id'] != $_SESSION['user_id'] && !isAdmin()) {
         setMessage('error', 'Bu teklifi düzenleme yetkiniz bulunmamaktadır.');
         header("Location: quotations.php");
         exit;
     }
-} catch(PDOException $e) {
+} catch (PDOException $e) {
     setMessage('error', 'Yetki kontrolünde hata: ' . $e->getMessage());
     header("Location: quotations.php");
     exit;
@@ -68,21 +68,24 @@ try {
     $stmt->execute();
     $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-} catch(PDOException $e) {
+} catch (PDOException $e) {
     setMessage('error', 'Teklif bilgileri alınırken hata oluştu: ' . $e->getMessage());
     header("Location: quotations.php");
     exit;
 }
 
 // Müşterileri, Ürünleri, Hizmetleri getir (dropdown'lar için)
-$customers = []; $products = []; $services = [];
+$customers = [];
+$products = [];
+$services = [];
 try {
     $customers = $conn->query("SELECT id, name FROM customers ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
     $products = $conn->query("SELECT id, code, name, price, tax_rate FROM products ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
-    $services = $conn->query("SELECT id, code, name, price, tax_rate FROM services ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
-} catch(PDOException $e) {
-   setMessage('error', 'Dropdown verileri alınırken hata oluştu: ' . $e->getMessage());
-   // Hata durumunda boş dizilerle devam edebilir veya işlemi durdurabiliriz.
+    // Hizmetler geçici olarak devre dışı bırakıldı
+    // $services = $conn->query("SELECT id, code, name, price, tax_rate FROM services ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) {
+    setMessage('error', 'Dropdown verileri alınırken hata oluştu: ' . $e->getMessage());
+    // Hata durumunda boş dizilerle devam edebilir veya işlemi durdurabiliriz.
 }
 
 // Form gönderildi mi kontrol et
@@ -106,11 +109,16 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
     // Doğrulama
     $errors = [];
-    if (empty($customer_id)) $errors[] = "Müşteri seçilmelidir.";
-    if (empty($date)) $errors[] = "Teklif tarihi girilmelidir.";
-    if (empty($valid_until)) $errors[] = "Geçerlilik tarihi girilmelidir.";
-    if (empty($status)) $errors[] = "Durum seçilmelidir."; // Durum zorunlu olsun
-    if (empty($item_types)) $errors[] = "En az bir kalem eklenmelidir.";
+    if (empty($customer_id))
+        $errors[] = "Müşteri seçilmelidir.";
+    if (empty($date))
+        $errors[] = "Teklif tarihi girilmelidir.";
+    if (empty($valid_until))
+        $errors[] = "Geçerlilik tarihi girilmelidir.";
+    if (empty($status))
+        $errors[] = "Durum seçilmelidir."; // Durum zorunlu olsun
+    if (empty($item_types))
+        $errors[] = "En az bir kalem eklenmelidir.";
     // Diğer kalem bazlı doğrulamalar eklenebilir (örn. miktar > 0)
 
     // Hata yoksa güncelle
@@ -119,15 +127,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $conn->beginTransaction();
 
             // Toplamları hesapla (virgülleri noktaya çevirerek)
-            $subtotal = 0; $tax_amount = 0; $discount_amount = 0; $total_amount = 0;
+            $subtotal = 0;
+            $tax_amount = 0;
+            $discount_amount = 0;
+            $total_amount = 0;
             for ($i = 0; $i < count($item_types); $i++) {
-                 // Virgülü noktaya çevir
-                 $q = floatval(str_replace(',', '.', $quantities[$i] ?? '0'));
-                 $up = floatval(str_replace(',', '.', $unit_prices[$i] ?? '0'));
-                 $dp = floatval(str_replace(',', '.', $discount_percents[$i] ?? '0'));
-                 $tr = floatval(str_replace(',', '.', $tax_rates[$i] ?? '0'));
+                // Virgülü noktaya çevir
+                $q = floatval(str_replace(',', '.', $quantities[$i] ?? '0'));
+                $up = floatval(str_replace(',', '.', $unit_prices[$i] ?? '0'));
+                $dp = floatval(str_replace(',', '.', $discount_percents[$i] ?? '0'));
+                $tr = floatval(str_replace(',', '.', $tax_rates[$i] ?? '0'));
 
-                 if ($q <= 0 || $up < 0) continue; // Geçersiz miktar veya fiyatı atla
+                if ($q <= 0 || $up < 0)
+                    continue; // Geçersiz miktar veya fiyatı atla
 
                 $line_subtotal = $q * $up;
                 $line_discount = $line_subtotal * ($dp / 100);
@@ -173,19 +185,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
 
             // Yeni kalemleri ekle (virgülleri noktaya çevirerek)
             for ($i = 0; $i < count($item_types); $i++) {
-                 $item_type = $item_types[$i];
+                $item_type = $item_types[$i];
                 $item_id = $item_ids[$i];
                 $description = $descriptions[$i];
-                 // Virgülü noktaya çevir
-                 $quantity = floatval(str_replace(',', '.', $quantities[$i] ?? '0'));
-                 $unit_price = floatval(str_replace(',', '.', $unit_prices[$i] ?? '0'));
-                 $discount_percent = floatval(str_replace(',', '.', $discount_percents[$i] ?? '0'));
-                 $tax_rate = floatval(str_replace(',', '.', $tax_rates[$i] ?? '0'));
+                // Virgülü noktaya çevir
+                $quantity = floatval(str_replace(',', '.', $quantities[$i] ?? '0'));
+                $unit_price = floatval(str_replace(',', '.', $unit_prices[$i] ?? '0'));
+                $discount_percent = floatval(str_replace(',', '.', $discount_percents[$i] ?? '0'));
+                $tax_rate = floatval(str_replace(',', '.', $tax_rates[$i] ?? '0'));
 
                 // Sadece geçerli verileri ekle
-                 if (empty($item_type) || empty($item_id) || $quantity <= 0 || $unit_price < 0) {
+                if (empty($item_type) || empty($item_id) || $quantity <= 0 || $unit_price < 0) {
                     continue;
-                 }
+                }
 
                 $line_subtotal = ($quantity * $unit_price) * (1 - ($discount_percent / 100));
 
@@ -214,19 +226,19 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             header("Location: view_quotation.php?id=" . $id);
             exit;
 
-        } catch(PDOException $e) {
+        } catch (PDOException $e) {
             $conn->rollBack();
             $errors[] = "Veritabanı hatası: " . $e->getMessage();
         }
     }
-     // Hata varsa veya POST değilse, formda gösterilecek değerleri ayarla (mevcut değerler)
-     $quotation['customer_id'] = $_POST['customer_id'] ?? $quotation['customer_id'];
-     $quotation['date'] = $_POST['date'] ?? $quotation['date'];
-     $quotation['valid_until'] = $_POST['valid_until'] ?? $quotation['valid_until'];
-     $quotation['notes'] = $_POST['notes'] ?? $quotation['notes'];
-     $quotation['terms_conditions'] = $_POST['terms_conditions'] ?? $quotation['terms_conditions'];
-     $quotation['status'] = $_POST['status'] ?? $quotation['status'];
-     // Kalemler hata durumunda tekrar doldurulamaz, mevcutlar PHP ile basılacak.
+    // Hata varsa veya POST değilse, formda gösterilecek değerleri ayarla (mevcut değerler)
+    $quotation['customer_id'] = $_POST['customer_id'] ?? $quotation['customer_id'];
+    $quotation['date'] = $_POST['date'] ?? $quotation['date'];
+    $quotation['valid_until'] = $_POST['valid_until'] ?? $quotation['valid_until'];
+    $quotation['notes'] = $_POST['notes'] ?? $quotation['notes'];
+    $quotation['terms_conditions'] = $_POST['terms_conditions'] ?? $quotation['terms_conditions'];
+    $quotation['status'] = $_POST['status'] ?? $quotation['status'];
+    // Kalemler hata durumunda tekrar doldurulamaz, mevcutlar PHP ile basılacak.
 }
 
 
@@ -236,23 +248,36 @@ include 'includes/header.php';
 include 'includes/navbar.php';
 include 'includes/sidebar.php';
 ?>
- <style> /* Kalem ayırma stili */
-    .item-row { border: 1px solid #dee2e6; padding: 15px; margin-bottom: 15px; border-radius: 0.375rem; background-color: #f8f9fa; }
-    .item-row .remove-item { margin-top: 5px; }
-    .item-row .form-label { margin-bottom: 0.25rem; }
- </style>
+<style>
+    /* Kalem ayırma stili */
+    .item-row {
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 0.375rem;
+        background-color: #f8f9fa;
+    }
+
+    .item-row .remove-item {
+        margin-top: 5px;
+    }
+
+    .item-row .form-label {
+        margin-bottom: 0.25rem;
+    }
+</style>
 
 <!-- Main Content -->
 <div class="main-content">
     <div class="container-fluid">
         <div class="d-flex justify-content-between align-items-center mb-4">
-             <h1 class="h2">Teklif Düzenle: <?php echo htmlspecialchars($quotation['reference_no']); ?></h1>
+            <h1 class="h2">Teklif Düzenle: <?php echo htmlspecialchars($quotation['reference_no']); ?></h1>
             <a href="view_quotation.php?id=<?php echo $id; ?>" class="btn btn-secondary">
                 <i class="bi bi-arrow-left"></i> Teklife Dön
             </a>
         </div>
 
-         <?php if (!empty($errors)): ?>
+        <?php if (!empty($errors)): ?>
             <div class="alert alert-danger">
                 <ul class="mb-0">
                     <?php foreach ($errors as $error): ?>
@@ -262,16 +287,19 @@ include 'includes/sidebar.php';
             </div>
         <?php endif; ?>
 
-         <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"] . '?id=' . $id); ?>">
+        <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"] . '?id=' . $id); ?>">
             <div class="row">
                 <!-- Sol Sütun - Temel Bilgiler -->
                 <div class="col-md-4">
-                     <div class="card mb-4">
-                        <div class="card-header"><h5 class="card-title mb-0">Teklif Bilgileri</h5></div>
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">Teklif Bilgileri</h5>
+                        </div>
                         <div class="card-body">
                             <div class="mb-3">
-                                <label for="customer_id" class="form-label">Müşteri <span class="text-danger">*</span></label>
-                                 <select class="form-select" id="customer_id" name="customer_id" required>
+                                <label for="customer_id" class="form-label">Müşteri <span
+                                        class="text-danger">*</span></label>
+                                <select class="form-select" id="customer_id" name="customer_id" required>
                                     <option value="">Müşteri Seçin</option>
                                     <?php foreach ($customers as $customer): ?>
                                         <option value="<?php echo $customer['id']; ?>" <?php echo ($quotation['customer_id'] == $customer['id']) ? 'selected' : ''; ?>>
@@ -281,32 +309,37 @@ include 'includes/sidebar.php';
                                 </select>
                             </div>
                             <div class="mb-3">
-                                <label for="date" class="form-label">Teklif Tarihi <span class="text-danger">*</span></label>
+                                <label for="date" class="form-label">Teklif Tarihi <span
+                                        class="text-danger">*</span></label>
                                 <input type="date" class="form-control" id="date" name="date" required
-                                       value="<?php echo $quotation['date']; ?>">
+                                    value="<?php echo $quotation['date']; ?>">
                             </div>
                             <div class="mb-3">
-                                <label for="valid_until" class="form-label">Geçerlilik Tarihi <span class="text-danger">*</span></label>
+                                <label for="valid_until" class="form-label">Geçerlilik Tarihi <span
+                                        class="text-danger">*</span></label>
                                 <input type="date" class="form-control" id="valid_until" name="valid_until" required
-                                       value="<?php echo $quotation['valid_until']; ?>">
+                                    value="<?php echo $quotation['valid_until']; ?>">
                             </div>
-                             <div class="mb-3">
+                            <div class="mb-3">
                                 <label for="status" class="form-label">Durum <span class="text-danger">*</span></label>
                                 <select class="form-select" id="status" name="status" required>
                                     <option value="draft" <?php echo $quotation['status'] == 'draft' ? 'selected' : ''; ?>>Taslak</option>
-                                    <option value="sent" <?php echo $quotation['status'] == 'sent' ? 'selected' : ''; ?>>Gönderildi</option>
+                                    <option value="sent" <?php echo $quotation['status'] == 'sent' ? 'selected' : ''; ?>>
+                                        Gönderildi</option>
                                     <option value="accepted" <?php echo $quotation['status'] == 'accepted' ? 'selected' : ''; ?>>Kabul Edildi</option>
                                     <option value="rejected" <?php echo $quotation['status'] == 'rejected' ? 'selected' : ''; ?>>Reddedildi</option>
                                     <option value="expired" <?php echo $quotation['status'] == 'expired' ? 'selected' : ''; ?>>Süresi Doldu</option>
                                 </select>
                             </div>
-                             <div class="mb-3">
+                            <div class="mb-3">
                                 <label for="notes" class="form-label">Notlar</label>
-                                <textarea class="form-control" id="notes" name="notes" rows="3"><?php echo htmlspecialchars($quotation['notes']); ?></textarea>
+                                <textarea class="form-control" id="notes" name="notes"
+                                    rows="3"><?php echo htmlspecialchars($quotation['notes']); ?></textarea>
                             </div>
                             <div class="mb-3">
                                 <label for="terms_conditions" class="form-label">Şartlar ve Koşullar</label>
-                                 <textarea class="form-control" id="terms_conditions" name="terms_conditions" rows="5"><?php echo htmlspecialchars($quotation['terms_conditions']); ?></textarea>
+                                <textarea class="form-control" id="terms_conditions" name="terms_conditions"
+                                    rows="5"><?php echo htmlspecialchars($quotation['terms_conditions']); ?></textarea>
                             </div>
                         </div>
                     </div>
@@ -321,67 +354,85 @@ include 'includes/sidebar.php';
                                 <i class="bi bi-plus-circle"></i> Kalem Ekle
                             </button>
                         </div>
-                         <div class="card-body">
+                        <div class="card-body">
                             <div id="items-container">
                                 <!-- Mevcut kalemler PHP ile basılacak -->
                                 <?php foreach ($items as $index => $item): ?>
                                     <div class="item-row">
                                         <div class="row mb-2">
                                             <div class="col-md-6">
-                                                <label class="form-label">Kalem Tipi <span class="text-danger">*</span></label>
+                                                <label class="form-label">Kalem Tipi <span
+                                                        class="text-danger">*</span></label>
                                                 <select class="form-select item-type" name="item_type[]" required>
                                                     <option value="">Seçin</option>
                                                     <option value="product" <?php echo $item['item_type'] == 'product' ? 'selected' : ''; ?>>Ürün</option>
-                                                    <option value="service" <?php echo $item['item_type'] == 'service' ? 'selected' : ''; ?>>Hizmet</option>
+                                                    <!-- <option value="service" <?php echo $item['item_type'] == 'service' ? 'selected' : ''; ?>>Hizmet</option> -->
+                                                    <!-- Hizmet seçeneği geçici olarak kapalı -->
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">Ürün/Hizmet <span class="text-danger">*</span></label>
+                                                <label class="form-label">Ürün/Hizmet <span
+                                                        class="text-danger">*</span></label>
                                                 <select class="form-select item-id" name="item_id[]" required>
                                                     <option value="">Önce tür seçin</option>
                                                     <!-- Seçenekler JS ile doldurulacak -->
                                                 </select>
-                                                 <!-- Seçili ID'yi saklamak için gizli alan -->
-                                                <input type="hidden" class="selected-item-id" value="<?php echo $item['item_id']; ?>">
+                                                <!-- Seçili ID'yi saklamak için gizli alan -->
+                                                <input type="hidden" class="selected-item-id"
+                                                    value="<?php echo $item['item_id']; ?>">
                                             </div>
                                         </div>
                                         <div class="row mb-2">
                                             <div class="col-md-12">
                                                 <label class="form-label">Açıklama</label>
-                                                <textarea class="form-control item-description" name="description[]" rows="2"><?php echo htmlspecialchars($item['description']); ?></textarea>
+                                                <textarea class="form-control item-description" name="description[]"
+                                                    rows="2"><?php echo htmlspecialchars($item['description']); ?></textarea>
                                             </div>
                                         </div>
                                         <div class="row mb-2">
                                             <div class="col-md-3">
                                                 <label class="form-label">Miktar <span class="text-danger">*</span></label>
                                                 <!-- Adım "any" ondalıklar için, value PHP'den virgüllü -->
-                                                <input type="text" class="form-control item-quantity numeric-input" name="quantity[]" value="<?php echo number_format($item['quantity'], 2, ',', ''); ?>" required>
+                                                <input type="text" class="form-control item-quantity numeric-input"
+                                                    name="quantity[]"
+                                                    value="<?php echo number_format($item['quantity'], 2, ',', ''); ?>"
+                                                    required>
                                             </div>
                                             <div class="col-md-3">
-                                                <label class="form-label">Birim Fiyat <span class="text-danger">*</span></label>
-                                                 <!-- PHP'den virgüllü, step any -->
-                                                <input type="text" class="form-control item-price numeric-input" name="unit_price[]" value="<?php echo number_format($item['unit_price'], 2, ',', '.'); ?>" required>
+                                                <label class="form-label">Birim Fiyat <span
+                                                        class="text-danger">*</span></label>
+                                                <!-- PHP'den virgüllü, step any -->
+                                                <input type="text" class="form-control item-price numeric-input"
+                                                    name="unit_price[]"
+                                                    value="<?php echo number_format($item['unit_price'], 2, ',', '.'); ?>"
+                                                    required>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">İndirim %</label>
-                                                <input type="text" class="form-control item-discount numeric-input" name="discount_percent[]" value="<?php echo number_format($item['discount_percent'], 2, ',', ''); ?>">
+                                                <input type="text" class="form-control item-discount numeric-input"
+                                                    name="discount_percent[]"
+                                                    value="<?php echo number_format($item['discount_percent'], 2, ',', ''); ?>">
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">KDV %</label>
-                                                <input type="text" class="form-control item-tax numeric-input" name="tax_rate[]" value="<?php echo number_format($item['tax_rate'], 2, ',', ''); ?>">
+                                                <input type="text" class="form-control item-tax numeric-input"
+                                                    name="tax_rate[]"
+                                                    value="<?php echo number_format($item['tax_rate'], 2, ',', ''); ?>">
                                             </div>
-                                             <div class="col-md-2 d-flex align-items-end">
-                                                <button type="button" class="btn btn-danger w-100 remove-item">Kaldır</button>
+                                            <div class="col-md-2 d-flex align-items-end">
+                                                <button type="button"
+                                                    class="btn btn-danger w-100 remove-item">Kaldır</button>
                                             </div>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
-                                 <!-- Yeni eklenecekler için template -->
+                                <!-- Yeni eklenecekler için template -->
                                 <template id="item-template">
                                     <div class="item-row">
-                                         <div class="row mb-2">
+                                        <div class="row mb-2">
                                             <div class="col-md-6">
-                                                <label class="form-label">Kalem Tipi <span class="text-danger">*</span></label>
+                                                <label class="form-label">Kalem Tipi <span
+                                                        class="text-danger">*</span></label>
                                                 <select class="form-select item-type" name="item_type[]" required>
                                                     <option value="">Seçin</option>
                                                     <option value="product">Ürün</option>
@@ -389,7 +440,8 @@ include 'includes/sidebar.php';
                                                 </select>
                                             </div>
                                             <div class="col-md-6">
-                                                <label class="form-label">Ürün/Hizmet <span class="text-danger">*</span></label>
+                                                <label class="form-label">Ürün/Hizmet <span
+                                                        class="text-danger">*</span></label>
                                                 <select class="form-select item-id" name="item_id[]" required disabled>
                                                     <option value="">Önce tür seçin</option>
                                                 </select>
@@ -398,28 +450,36 @@ include 'includes/sidebar.php';
                                         <div class="row mb-2">
                                             <div class="col-md-12">
                                                 <label class="form-label">Açıklama</label>
-                                                <textarea class="form-control item-description" name="description[]" rows="2"></textarea>
+                                                <textarea class="form-control item-description" name="description[]"
+                                                    rows="2"></textarea>
                                             </div>
                                         </div>
                                         <div class="row mb-2">
                                             <div class="col-md-3">
-                                                <label class="form-label">Miktar <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control item-quantity numeric-input" name="quantity[]" value="1,00" required>
+                                                <label class="form-label">Miktar <span
+                                                        class="text-danger">*</span></label>
+                                                <input type="text" class="form-control item-quantity numeric-input"
+                                                    name="quantity[]" value="1,00" required>
                                             </div>
                                             <div class="col-md-3">
-                                                <label class="form-label">Birim Fiyat <span class="text-danger">*</span></label>
-                                                <input type="text" class="form-control item-price numeric-input" name="unit_price[]" value="0,00" required>
+                                                <label class="form-label">Birim Fiyat <span
+                                                        class="text-danger">*</span></label>
+                                                <input type="text" class="form-control item-price numeric-input"
+                                                    name="unit_price[]" value="0,00" required>
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">İndirim %</label>
-                                                <input type="text" class="form-control item-discount numeric-input" name="discount_percent[]" value="0,00">
+                                                <input type="text" class="form-control item-discount numeric-input"
+                                                    name="discount_percent[]" value="0,00">
                                             </div>
                                             <div class="col-md-2">
                                                 <label class="form-label">KDV %</label>
-                                                <input type="text" class="form-control item-tax numeric-input" name="tax_rate[]" value="18,00">
+                                                <input type="text" class="form-control item-tax numeric-input"
+                                                    name="tax_rate[]" value="18,00">
                                             </div>
-                                             <div class="col-md-2 d-flex align-items-end">
-                                                <button type="button" class="btn btn-danger w-100 remove-item">Kaldır</button>
+                                            <div class="col-md-2 d-flex align-items-end">
+                                                <button type="button"
+                                                    class="btn btn-danger w-100 remove-item">Kaldır</button>
                                             </div>
                                         </div>
                                     </div>
@@ -429,23 +489,24 @@ include 'includes/sidebar.php';
                             <!-- Toplamlar -->
                             <div class="row mt-4">
                                 <div class="col-md-7 offset-md-5">
-                                     <div class="mb-2 d-flex justify-content-between">
+                                    <div class="mb-2 d-flex justify-content-between">
                                         <strong>Ara Toplam:</strong> <span id="subtotal">0,00 ₺</span>
                                     </div>
                                     <div class="mb-2 d-flex justify-content-between">
                                         <strong>İndirim:</strong> <span id="discount">0,00 ₺</span>
                                     </div>
-                                     <div class="mb-2 d-flex justify-content-between">
+                                    <div class="mb-2 d-flex justify-content-between">
                                         <strong>KDV:</strong> <span id="tax">0,00 ₺</span>
                                     </div>
                                     <hr>
                                     <div class="mb-2 d-flex justify-content-between">
-                                         <strong class="fs-5">Genel Toplam:</strong> <span id="total" class="fw-bold fs-5">0,00 ₺</span>
+                                        <strong class="fs-5">Genel Toplam:</strong> <span id="total"
+                                            class="fw-bold fs-5">0,00 ₺</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                         <div class="card-footer text-end">
+                        <div class="card-footer text-end">
                             <a href="view_quotation.php?id=<?php echo $id; ?>" class="btn btn-secondary me-2">İptal</a>
                             <button type="submit" class="btn btn-primary">Teklifi Güncelle</button>
                         </div>
@@ -458,33 +519,33 @@ include 'includes/sidebar.php';
 
 <?php include 'includes/footer.php'; ?>
 
- <script>
+<script>
     // Ürün ve Hizmet verileri
     const products = <?php echo json_encode($products); ?>;
     const services = <?php echo json_encode($services); ?>;
 
-     // Para formatı (Türkçe)
+    // Para formatı (Türkçe)
     function formatCurrency(value) {
         return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(value);
     }
 
     // Sayı formatı (PHP'ye göndermek için noktaya çevirir)
-     function formatNumberForServer(value) {
-         // Sadece rakam ve virgül/nokta al, sonra virgülü noktaya çevir
+    function formatNumberForServer(value) {
+        // Sadece rakam ve virgül/nokta al, sonra virgülü noktaya çevir
         let numStr = String(value).replace(/[^0-9.,]/g, '').replace(',', '.');
         // Birden fazla noktayı engelle
         let parts = numStr.split('.');
-         if (parts.length > 2) {
+        if (parts.length > 2) {
             numStr = parts[0] + '.' + parts.slice(1).join('');
         }
-         return parseFloat(numStr || 0); // Sayıya çevir, olmazsa 0
-     }
+        return parseFloat(numStr || 0); // Sayıya çevir, olmazsa 0
+    }
 
-      // Sayı formatı (Inputta göstermek için virgüllü)
-     function formatNumberForInput(value) {
+    // Sayı formatı (Inputta göstermek için virgüllü)
+    function formatNumberForInput(value) {
         const num = parseFloat(value || 0);
         return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-     }
+    }
 
 
     // Toplamları güncelle
@@ -494,12 +555,12 @@ include 'includes/sidebar.php';
         let totalTax = 0;
 
         document.querySelectorAll('#items-container .item-row').forEach(row => {
-             const quantity = formatNumberForServer(row.querySelector('.item-quantity').value);
-             const price = formatNumberForServer(row.querySelector('.item-price').value);
-             const discountPercent = formatNumberForServer(row.querySelector('.item-discount').value);
-             const taxPercent = formatNumberForServer(row.querySelector('.item-tax').value);
+            const quantity = formatNumberForServer(row.querySelector('.item-quantity').value);
+            const price = formatNumberForServer(row.querySelector('.item-price').value);
+            const discountPercent = formatNumberForServer(row.querySelector('.item-discount').value);
+            const taxPercent = formatNumberForServer(row.querySelector('.item-tax').value);
 
-             if (quantity <= 0 || price < 0) return; // Geçersizse atla
+            if (quantity <= 0 || price < 0) return; // Geçersizse atla
 
             const lineSubtotal = quantity * price;
             const lineDiscount = lineSubtotal * (discountPercent / 100);
@@ -520,7 +581,7 @@ include 'includes/sidebar.php';
     }
 
 
-     // Ürünleri yükle
+    // Ürünleri yükle
     function loadProducts(selectElement) {
         products.forEach(product => {
             const option = document.createElement('option');
@@ -533,9 +594,14 @@ include 'includes/sidebar.php';
         });
     }
 
-    // Hizmetleri yükle
+    // Hizmetleri yükle - Geçici olarak devre dışı bırakıldı
     function loadServices(selectElement) {
-        services.forEach(service => {
+        // Geçici olarak devre dışı bırakıldı
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "Hizmet seçimi şu an kullanılamaz";
+        selectElement.appendChild(option);
+        /*services.forEach(service => {
             const option = document.createElement('option');
             option.value = service.id;
             option.textContent = `${service.code} - ${service.name} (${formatNumberForInput(service.price)} ₺)`;
@@ -543,7 +609,7 @@ include 'includes/sidebar.php';
             option.dataset.tax = service.tax_rate;
             option.dataset.description = service.name;
             selectElement.appendChild(option);
-        });
+        });*/
     }
 
     // Kalem tipi değiştiğinde ürün/hizmet listesini yükle
@@ -560,7 +626,7 @@ include 'includes/sidebar.php';
 
         const itemsToLoad = (itemType === 'product') ? products : (itemType === 'service' ? services : []);
 
-         if (itemType === 'product') {
+        if (itemType === 'product') {
             loadProducts(itemIdSelect);
         } else if (itemType === 'service') {
             loadServices(itemIdSelect);
@@ -571,8 +637,8 @@ include 'includes/sidebar.php';
         // Eğer önceden seçili bir ID varsa ve yeni listede bulunuyorsa, onu seçili yap
         if (previouslySelectedId && itemsToLoad.some(item => item.id == previouslySelectedId)) {
             itemIdSelect.value = previouslySelectedId;
-             // Seçim değiştiği için ilgili alanları güncelle
-             handleItemIdChange(itemIdSelect);
+            // Seçim değiştiği için ilgili alanları güncelle
+            handleItemIdChange(itemIdSelect);
         } else {
             // Tür değiştiğinde veya eşleşme olmadığında fiyat vb. sıfırla veya varsayılan yap
             row.querySelector('.item-price').value = formatNumberForInput(0);
@@ -581,24 +647,24 @@ include 'includes/sidebar.php';
             updateTotals(); // Tür değişince de toplam güncellensin
         }
 
-         // Hidden input'un değerini temizle (artık dropdown'dan okunacak)
-         if (selectedItemIdHidden) {
+        // Hidden input'un değerini temizle (artık dropdown'dan okunacak)
+        if (selectedItemIdHidden) {
             selectedItemIdHidden.value = '';
-         }
+        }
     }
 
 
     // Ürün/Hizmet seçildiğinde fiyat/vergi/açıklama doldur
     function handleItemIdChange(selectElement) {
-         const selectedOption = selectElement.options[selectElement.selectedIndex];
+        const selectedOption = selectElement.options[selectElement.selectedIndex];
         const row = selectElement.closest('.item-row');
-         const priceInput = row.querySelector('.item-price');
-         const taxInput = row.querySelector('.item-tax');
-         const descInput = row.querySelector('.item-description');
+        const priceInput = row.querySelector('.item-price');
+        const taxInput = row.querySelector('.item-tax');
+        const descInput = row.querySelector('.item-description');
 
         if (selectedOption && selectedOption.value) {
-             priceInput.value = formatNumberForInput(selectedOption.dataset.price);
-             taxInput.value = formatNumberForInput(selectedOption.dataset.tax);
+            priceInput.value = formatNumberForInput(selectedOption.dataset.price);
+            taxInput.value = formatNumberForInput(selectedOption.dataset.tax);
             // Açıklama boşsa doldur, doluysa elle girilene dokunma
             if (!descInput.value.trim()) {
                 descInput.value = selectedOption.dataset.description;
@@ -612,7 +678,7 @@ include 'includes/sidebar.php';
         updateTotals();
     }
 
-     // Yeni kalem ekle
+    // Yeni kalem ekle
     function addNewItem() {
         const template = document.getElementById('item-template');
         const container = document.getElementById('items-container');
@@ -625,55 +691,55 @@ include 'includes/sidebar.php';
         updateTotals(); // Yeni item eklenince toplam güncellensin
     }
 
-     // Bir satıra event listener ekleyen yardımcı fonksiyon
-     function attachEventListenersToRow(rowElement) {
-         const itemTypeSelect = rowElement.querySelector('.item-type');
-         const itemIdSelect = rowElement.querySelector('.item-id');
-         const numericInputs = rowElement.querySelectorAll('.numeric-input'); // Sınıfı ekledik
-         const removeButton = rowElement.querySelector('.remove-item');
+    // Bir satıra event listener ekleyen yardımcı fonksiyon
+    function attachEventListenersToRow(rowElement) {
+        const itemTypeSelect = rowElement.querySelector('.item-type');
+        const itemIdSelect = rowElement.querySelector('.item-id');
+        const numericInputs = rowElement.querySelectorAll('.numeric-input'); // Sınıfı ekledik
+        const removeButton = rowElement.querySelector('.remove-item');
 
-         if (itemTypeSelect) {
-             itemTypeSelect.addEventListener('change', function() { handleItemTypeChange(this); });
-         }
-         if (itemIdSelect) {
-             itemIdSelect.addEventListener('change', function() { handleItemIdChange(this); });
-         }
+        if (itemTypeSelect) {
+            itemTypeSelect.addEventListener('change', function () { handleItemTypeChange(this); });
+        }
+        if (itemIdSelect) {
+            itemIdSelect.addEventListener('change', function () { handleItemIdChange(this); });
+        }
 
-         numericInputs.forEach(input => {
+        numericInputs.forEach(input => {
             // Odaklanınca noktaya çevir
             input.addEventListener('focus', (e) => {
                 e.target.value = String(e.target.value).replace(',', '.');
             });
-             // Odak kaybedince virgülle formatla
-             input.addEventListener('blur', (e) => {
-                 e.target.value = formatNumberForInput(e.target.value);
-                 updateTotals(); // Değer değişmiş olabilir, toplamı güncelle
-             });
-              // Giriş sırasında sadece sayı ve bir virgül/nokta izin ver (isteğe bağlı, gelişmiş)
-             input.addEventListener('input', (e) => {
+            // Odak kaybedince virgülle formatla
+            input.addEventListener('blur', (e) => {
+                e.target.value = formatNumberForInput(e.target.value);
+                updateTotals(); // Değer değişmiş olabilir, toplamı güncelle
+            });
+            // Giriş sırasında sadece sayı ve bir virgül/nokta izin ver (isteğe bağlı, gelişmiş)
+            input.addEventListener('input', (e) => {
                 // Basit bir filtreleme yapılabilir veya regex kullanılabilir
                 // e.target.value = e.target.value.replace(/[^0-9.,]/g, '');
-                 updateTotals(); // Her girişte toplamı güncelle
-             });
-         });
+                updateTotals(); // Her girişte toplamı güncelle
+            });
+        });
 
         if (removeButton) {
-            removeButton.addEventListener('click', function() {
+            removeButton.addEventListener('click', function () {
                 this.closest('.item-row').remove();
                 updateTotals();
             });
         }
-     }
+    }
 
 
-     document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
         // Mevcut kalemler için event listener'ları ve ilk yüklemeyi yap
         document.querySelectorAll('#items-container .item-row').forEach(row => {
             const itemTypeSelect = row.querySelector('.item-type');
             // İlk yükleme için tür listesini doldur ve seçili olanı ayarla
             handleItemTypeChange(itemTypeSelect);
             // Bu satıra event listener'ları ekle
-             attachEventListenersToRow(row);
+            attachEventListenersToRow(row);
         });
 
         // Yeni kalem ekleme düğmesi

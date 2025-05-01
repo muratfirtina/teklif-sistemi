@@ -2,6 +2,7 @@
 // index.php - Geliştirilmiş ana sayfa / gösterge paneli
 require_once 'config/database.php';
 require_once 'includes/session.php';
+require_once 'includes/page_access_control.php'; // Üretim rolü kontrolü için
 
 // Kullanıcı girişi gerekli
 requireLogin();
