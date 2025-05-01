@@ -64,7 +64,7 @@ try {
         'company_tax_office' => 'Örnek Vergi Dairesi',
         'company_tax_number' => '1234567890',
         'company_logo_path' => 'assets/img/logo.png', // Logo yolu ayarı
-        'primary_color' => '#4A6EAA',
+        'primary_color' => '#CA271C',
         'quotation_prefix' => 'TEK',
         'quotation_terms' => "1. Fiyatlarımıza KDV dahil değildir.\n2. Ödeme şekli: Peşin.\n3. Teslim süresi: Siparişi takiben X iş günü."
     ];
@@ -172,6 +172,60 @@ class MYPDF_Quotation extends TCPDF
     // Header Metodu - Üst Bilgi
     public function Header()
     {
+         // --- FİLİGRAN BAŞLANGICI ---
+            // Filigran olarak kullanılacak resim (logo ile aynı varsayalım)
+            $watermark_image_file = __DIR__ . '/' . ltrim($this->companySettings['company_logo_path'] ?? 'assets/img/logo.png', '/');
+    
+            if (file_exists($watermark_image_file)) {
+                // Sayfa boyutlarını al
+                $pageW = $this->getPageWidth();
+                $pageH = $this->getPageHeight();
+                // Sayfa merkez koordinatları
+                $pageCenterX = $pageW / 24;
+                $pageCenterY = $pageH / 1.5;
+    
+                // Filigran ayarları
+                $watermarkW = $pageW * 1.13; // Filigran genişliği (sayfanın %75'i, ayarlanabilir)
+                $watermarkH = 0;           // Yükseklik otomatik (oranı koru)
+                $watermarkAngle = 45;     // Döndürme açısı (saat yönünün tersi için pozitif, saat yönü için negatif)
+                $watermarkOpacity = 0.08;  // Opaklık (0.0 = tam şeffaf, 1.0 = tam opak) - Çok düşük bir değer kullanın
+    
+                // Mevcut grafik durumunu kaydet (Alfa ayarı için)
+                $this->SetAlpha($watermarkOpacity);
+    
+                // Dönüşümü başlat
+                $this->StartTransform();
+    
+                // Sayfa merkezinin etrafında döndür
+                $this->Rotate($watermarkAngle, $pageCenterX, $pageCenterY);
+    
+                // Resmi sayfanın ortasına çizdir
+                // Image metoduna merkez koordinatları (X,Y) veriyoruz ve 'M' parametresi ile
+                // bu koordinatların resmin orta-merkez referans noktası olduğunu belirtiyoruz.
+                $this->Image(
+                    $watermark_image_file,
+                    $pageCenterX,    // Resmin ortalanacağı X koordinatı
+                    $pageCenterY,    // Resmin ortalanacağı Y koordinatı
+                    $watermarkW,     // Resim genişliği
+                    $watermarkH,     // Resim yüksekliği (0 = otomatik)
+                    '',              // Resim tipi (otomatik)
+                    '',              // Link
+                    'M',             // Hizalama: Orta-Merkez ('Middle-Center') referans noktası
+                    false,           // Yeniden boyutlandırma (true yapılırsa w/h'ye zorlar, false oranı korur)
+                    300,             // DPI
+                    '',              // Palet
+                    false,           // Maske mi?
+                    false,           // Maske resmi
+                    0                // Kenarlık
+                );
+    
+                // Dönüşümü bitir
+                $this->StopTransform();
+    
+                // Alfa (opaklık) ayarını normale döndür (sonraki çizimler için önemli)
+                $this->SetAlpha(1);
+            }
+            // --- FİLİGRAN SONU ---
         // Logo
         $logoPathSetting = $this->companySettings['company_logo_path'] ?? 'assets/img/logo.png';
         $image_file = __DIR__ . '/' . ltrim($logoPathSetting, '/'); // Göreceli yolu tam yola çevir
@@ -336,7 +390,7 @@ $pdf->Ln(0);
 $html = '
 <table cellspacing="0" cellpadding="8" border="0" style="width: 100%;">
     <tr>
-        <td width="48%" style="background-color: #f9f9f9; border-radius: 5px; padding: 10px; vertical-align: top;">
+        <td width="48%" style=" border-radius: 5px; padding: 10px; vertical-align: top;">
                 <h3 style="margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid ' . $primaryColor . ';">FİRMA BİLGİLERİ</h3>
                 <p style="margin: 5px 0; line-height: 1.5em;"></p>
                 <p><strong>' . htmlspecialchars($companySettings['company_name']) . '</strong></p>'
@@ -346,7 +400,7 @@ $html = '
     . '
         </td>
         <td width="4%">&nbsp;</td>
-        <td width="48%" style="background-color: #f9f9f9; border-radius: 5px; padding: 10px; vertical-align: top;">
+        <td width="48%" style=" border-radius: 5px; padding: 10px; vertical-align: top;">
             
                 <h3 style="margin: 0 0 10px 0; padding-bottom: 5px; border-bottom: 2px solid ' . $primaryColor . ';">MÜŞTERİ BİLGİLERİ</h3>
                 <p style="margin: 5px 0; line-height: 1.5em;"></p>
@@ -367,7 +421,7 @@ $pdf->Ln(-5);
 // 3. Teklifi Hazırlayan Bilgisi
 $html = '<table cellspacing="0" cellpadding="8" border="0" style="width: 100%;">
     <tr>
-        <td width="100%" style="background-color: #f9f9f9; border-radius: 5px;">
+        <td width="100%" style="border-radius: 5px;">
             <strong>Teklifi Hazırlayan:</strong> ' . $quotation['user_name'] . 
             ' | <strong>E-posta:</strong> ' . $quotation['user_email'] . '
         </td>
@@ -386,7 +440,7 @@ $pdf->SetLineWidth(0.3);
 // Başlık Hücreleri - "Tür" sütunu kaldırıldı
 $header = ['S.N', 'Kod', 'Açıklama', 'Miktar', 'Birim F.', 'İnd.%', 'Ara Top.', 'Toplam'];
 // Genişlikleri ayarla - Tür sütununun genişliği Ara Toplam ve Toplam'a eklendi
-$w = [8, 16, 58, 14, 22, 10, 28, 28]; // "Tür" sütunu (12) kaldırıldı, Ara Toplam ve Toplam +6 birim genişletildi
+$w = [8, 16, 48, 18, 22, 12, 28, 28]; // "Tür" sütunu (12) kaldırıldı, Ara Toplam ve Toplam +6 birim genişletildi
 $num_headers = count($header);
 for ($i = 0; $i < $num_headers; ++$i) {
     $align = 'C'; // Varsayılan orta
@@ -399,12 +453,12 @@ for ($i = 0; $i < $num_headers; ++$i) {
 $pdf->Ln();
 
 // İçerik Stilleri
-$pdf->SetFillColor(255, 255, 255);
+//$pdf->SetFillColor(255, 255, 255);
 $pdf->SetTextColor(50, 50, 50);
 $pdf->SetDrawColorArray($tableBorderColor);
 $pdf->SetFont('dejavusans', '', 8);
 $pdf->SetLineWidth(0.1);
-$fill = 0;
+//$fill = 0;
 
 $counter = 1;
 foreach ($items as $item) {
@@ -426,13 +480,13 @@ foreach ($items as $item) {
     // Satırı yazdır - "Tür" sütunu kaldırıldı
     $pdf->Cell($w[0], $row_height, $counter++, 1, 0, 'C', $fill, '', 0, false, 'T', 'M');
     // Tür sütunu kaldırıldı, sonraki sütunlar bir öne kaydırıldı
-    $pdf->Cell($w[1], $row_height, htmlspecialchars($item['item_code'] ?? '-'), 1, 0, 'L', $fill, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[1], $row_height, htmlspecialchars($item['item_code'] ?? '-'), 1, 0, 'L', false, '', 0, false, 'T', 'M');
     $pdf->MultiCell($w[2], $row_height, htmlspecialchars($item['description'] ?? ($item['item_name'] ?? '')), 1, 'L', $fill, 0, '', '', true, 0, false, true, $row_height, 'M');
-    $pdf->Cell($w[3], $row_height, number_format($quantity, 0, ',', '.'), 1, 0, 'C', $fill, '', 0, false, 'T', 'M');
-    $pdf->Cell($w[4], $row_height, formatCurrencyTR($unit_price), 1, 0, 'R', $fill, '', 0, false, 'T', 'M');
-    $pdf->Cell($w[5], $row_height, number_format($discount_percent, 0) . '%', 1, 0, 'C', $fill, '', 0, false, 'T', 'M');
-    $pdf->Cell($w[6], $row_height, formatCurrencyTR($line_subtotal_before_tax), 1, 0, 'R', $fill, '', 0, false, 'T', 'M');
-    $pdf->Cell($w[7], $row_height, formatCurrencyTR($line_total_with_tax), 1, 1, 'R', $fill, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[3], $row_height, number_format($quantity, 0, ',', '.'), 1, 0, 'C', false, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[4], $row_height, formatCurrencyTR($unit_price), 1, 0, 'R', false, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[5], $row_height, number_format($discount_percent, 0) . '%', 1, 0, 'C', false, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[6], $row_height, formatCurrencyTR($line_subtotal_before_tax), 1, 0, 'R', false, '', 0, false, 'T', 'M');
+    $pdf->Cell($w[7], $row_height, formatCurrencyTR($line_total_with_tax), 1, 1, 'R', false, '', 0, false, 'T', 'M');
 
     $fill = !$fill;
 }
@@ -487,8 +541,9 @@ if (!empty($bankAccounts)) {
     $pdf->Ln(0); // Başlık sonrası boşluk
 
     // --- Banka Hesapları Tablosu (Cell/MultiCell ile) ---
-    $pdf->SetFillColorArray($tableHeaderBgColor);
+
     $pdf->SetTextColorArray($tableHeaderTextColor);
+    $pdf->SetFillColorArray($tableHeaderBgColor); // Başlık arkaplan rengini ayarla (Gerekirse)
     $pdf->SetDrawColorArray($primaryColorArray);
     $pdf->SetFont('dejavusansb', 'B', 8); // Başlık fontu
     $pdf->SetLineWidth(0.3); // Başlık border
@@ -500,19 +555,21 @@ if (!empty($bankAccounts)) {
     $w_bank = [30, 70, 55, 25]; // Toplam 180
     $num_bank_headers = count($bank_header);
     for ($i = 0; $i < $num_bank_headers; ++$i) {
-        // Tüm başlıkları sola hizala
+        // Tüm başlıkları sola hizala ve başlık arkaplanını doldur (1)
         $align = 'L';
-        $pdf->Cell($w_bank[$i], 7, $bank_header[$i], 1, 0, $align, 1);
+        $pdf->Cell($w_bank[$i], 7, $bank_header[$i], 1, 0, $align, 1); // Başlıklar için fill = 1
     }
     $pdf->Ln(); // Başlık sonrası yeni satır
 
     // İçerik Stilleri
-    $pdf->SetFillColor(255, 255, 255);
+    // $pdf->SetFillColor(255, 255, 255); // Artık satır bazında fill yapmayacağımız için bu genel renk ayarı gereksiz.
+                                        // Eğer başka yerde fill(1) kullanılırsa beyaz doldurur.
+                                        // Ama satırlar için şeffaf istiyoruz.
     $pdf->SetTextColor(50, 50, 50);
     $pdf->SetDrawColorArray($tableBorderColor);
     $pdf->SetFont('dejavusans', '', 7.5); // İçerik fontu biraz daha küçük
     $pdf->SetLineWidth(0.1);
-    $bank_fill = 0;
+    // $bank_fill = 0; // Bu değişkene artık gerek yok
 
     foreach ($bankAccounts as $account) {
         // Satır yüksekliğini IBAN'a göre ayarla (yeni index 2)
@@ -521,16 +578,18 @@ if (!empty($bankAccounts)) {
         $row_height = max($row_height, $min_cell_height);
 
         // Satırı Yazdır (Varsayılan ve Şube olmadan, yeni indexlerle)
-        $pdf->Cell($w_bank[0], $row_height, htmlspecialchars($account['bank_name'] ?? '-'), 1, 0, 'L', $bank_fill, '', 0, false, 'T', 'M');         // Banka Adı (index 0)
-        $pdf->Cell($w_bank[1], $row_height, htmlspecialchars($account['account_holder'] ?? '-'), 1, 0, 'L', $bank_fill, '', 0, false, 'T', 'M');    // Hesap Sahibi (index 1)
+        // *** DEĞİŞİKLİK: Cell ve MultiCell'deki $fill parametresini hep 'false' (veya 0) yap ***
+        $pdf->Cell($w_bank[0], $row_height, htmlspecialchars($account['bank_name'] ?? '-'), 1, 0, 'L', false, '', 0, false, 'T', 'M');         // Banka Adı (index 0) - fill: false
+        $pdf->Cell($w_bank[1], $row_height, htmlspecialchars($account['account_holder'] ?? '-'), 1, 0, 'L', false, '', 0, false, 'T', 'M');    // Hesap Sahibi (index 1) - fill: false
         // IBAN potansiyel olarak uzun olduğu için MultiCell (yeni index 2)
-        $pdf->MultiCell($w_bank[2], $row_height, htmlspecialchars($account['iban'] ?? '-'), 1, 'L', $bank_fill, 0, '', '', true, 0, false, true, $row_height, 'M');
-        $pdf->Cell($w_bank[3], $row_height, htmlspecialchars($account['account_number'] ?? '-'), 1, 1, 'L', $bank_fill, '', 0, false, 'T', 'M'); // Hesap No (index 3), satır sonu
+        $pdf->MultiCell($w_bank[2], $row_height, htmlspecialchars($account['iban'] ?? '-'), 1, 'L', false, 0, '', '', true, 0, false, true, $row_height, 'M'); // IBAN - fill: false
+        $pdf->Cell($w_bank[3], $row_height, htmlspecialchars($account['account_number'] ?? '-'), 1, 1, 'L', false, '', 0, false, 'T', 'M'); // Hesap No (index 3), satır sonu - fill: false
 
-        $bank_fill = !$bank_fill;
+        // $bank_fill = !$bank_fill; // Bu satırı kaldır veya yorum satırı yap
     }
-    // Tablo sonrası boşluk bırakmak için Ln ekle
+    // Tablo sonrası boşluk bırakmak için Ln ekle (Değerini ayarlayabilirsiniz)
     $pdf->Ln(-10);
+
      // Section box div'ini kapatan HTML'i ekle
      $pdf->writeHTML('</div>', true, false, true, false, '');
 

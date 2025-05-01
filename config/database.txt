@@ -1,0 +1,188 @@
+<!-- Veritabanını oluştur -->
+CREATE DATABASE IF NOT EXISTS teklif_sistemi CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE teklif_sistemi;
+
+-- Kullanıcılar tablosu
+CREATE TABLE IF NOT EXISTS users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(50) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(100) NOT NULL,
+    role ENUM('admin', 'user','production') NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Müşteriler tablosu
+CREATE TABLE IF NOT EXISTS customers (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    contact_person VARCHAR(100),
+    email VARCHAR(100),
+    phone VARCHAR(20),
+    address TEXT,
+    tax_office VARCHAR(100),
+    tax_number VARCHAR(20),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Ürünler tablosu
+CREATE TABLE IF NOT EXISTS products (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    tax_rate DECIMAL(5,2) NOT NULL DEFAULT 18.00,
+    stock_quantity INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Hizmetler tablosu
+CREATE TABLE IF NOT EXISTS services (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    code VARCHAR(50) NOT NULL UNIQUE,
+    name VARCHAR(100) NOT NULL,
+    description TEXT,
+    price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    tax_rate DECIMAL(5,2) NOT NULL DEFAULT 18.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Teklifler tablosu
+CREATE TABLE IF NOT EXISTS quotations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    reference_no VARCHAR(50) NOT NULL UNIQUE,
+    customer_id INT NOT NULL,
+    user_id INT NOT NULL,
+    date DATE NOT NULL,
+    valid_until DATE NOT NULL,
+    status ENUM('draft', 'sent', 'accepted', 'rejected', 'expired') NOT NULL DEFAULT 'draft',
+    subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    tax_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    discount_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    notes TEXT,
+    terms_conditions TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (customer_id) REFERENCES customers(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Teklif kalemleri tablosu
+CREATE TABLE IF NOT EXISTS quotation_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quotation_id INT NOT NULL,
+    item_type ENUM('product', 'service') NOT NULL,
+    item_id INT NOT NULL,
+    description TEXT,
+    quantity INT NOT NULL DEFAULT 1,
+    unit_price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    discount_percent DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    tax_rate DECIMAL(5,2) NOT NULL DEFAULT 18.00,
+    subtotal DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Stok Hareketleri tablosu
+CREATE TABLE IF NOT EXISTS inventory_movements (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    product_id INT NOT NULL,
+    movement_type ENUM('in', 'out', 'adjustment') NOT NULL,
+    quantity INT NOT NULL,
+    reference_type VARCHAR(50),
+    reference_id INT,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    user_id INT NOT NULL,
+    FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE RESTRICT,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Üretim takip tablosu
+CREATE TABLE production_orders (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quotation_id INT NOT NULL,
+    status ENUM('pending', 'in_progress', 'completed', 'cancelled') DEFAULT 'pending',
+    delivery_deadline DATE,
+    production_notes TEXT,
+    completed_quantity DECIMAL(10, 2) DEFAULT 0,
+    total_quantity DECIMAL(10, 2) DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+);
+
+-- Üretim detay tablosu (her ürün için ayrı takip)
+CREATE TABLE production_order_items (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    production_order_id INT NOT NULL,
+    item_id INT NOT NULL,  
+    item_type VARCHAR(20) NOT NULL, -- product veya service
+    quantity DECIMAL(10, 2) NOT NULL,
+    completed_quantity DECIMAL(10, 2) DEFAULT 0,
+    status ENUM('pending', 'in_progress', 'completed') DEFAULT 'pending',
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (production_order_id) REFERENCES production_orders(id) ON DELETE CASCADE
+);
+
+-- Bildirimler tablosu
+CREATE TABLE notifications (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    related_id INT,
+    related_type VARCHAR(50),
+    message TEXT NOT NULL,
+    is_read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE quotation_terms (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    quotation_id INT NOT NULL,
+    payment_terms VARCHAR(255),
+    payment_percentage INT DEFAULT 50,
+    delivery_days INT DEFAULT 10,
+    warranty_period VARCHAR(100),
+    installation_included BOOLEAN DEFAULT FALSE,
+    transportation_included BOOLEAN DEFAULT FALSE,
+    custom_terms TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (quotation_id) REFERENCES quotations(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS bank_accounts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    bank_name VARCHAR(100) NOT NULL,
+    account_holder VARCHAR(100) NOT NULL,
+    iban VARCHAR(50) NOT NULL,
+    branch_name VARCHAR(100),
+    branch_code VARCHAR(50),
+    account_number VARCHAR(50),
+    swift_code VARCHAR(50),
+    currency VARCHAR(10) DEFAULT 'TRY',
+    is_default BOOLEAN DEFAULT FALSE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Admin kullanıcı oluşturma
+INSERT INTO users (username, password, email, full_name, role) 
+VALUES ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin@example.com', 'Sistem Yöneticisi', 'admin');
+-- Not: Şifre "password" olarak ayarlanmıştır. Gerçek uygulamada değiştirin.
+
+ALTER TABLE users
+ADD COLUMN email_signature TEXT NULL DEFAULT NULL AFTER role,
+ADD COLUMN signature_image VARCHAR(255) NULL DEFAULT NULL AFTER email_signature;
