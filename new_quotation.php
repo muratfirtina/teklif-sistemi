@@ -100,7 +100,17 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
             $count = $stmt->fetchColumn();
             $sequence = $count + 1;
 
-            $reference_no = sprintf("TEK-%s-%s-%03d", $year, $month, $sequence);
+            $prefix = "TEK"; // Varsayılan değer
+            try {
+                $prefixStmt = $conn->query("SELECT setting_value FROM settings WHERE setting_key = 'quotation_prefix'");
+                if ($prefixStmt->rowCount() > 0) {
+                    $prefix = $prefixStmt->fetchColumn();
+                }
+            } catch (PDOException $e) {
+                error_log("Teklif öneki alınırken hata: " . $e->getMessage());
+            }
+
+            $reference_no = sprintf("%s-%s-%s-%03d", $prefix, $year, $month, $sequence);
 
             // Toplam tutarları hesapla
             $subtotal = 0;
@@ -684,14 +694,14 @@ include 'includes/sidebar.php';
 
             // Ödeme koşulları
             if (paymentTerms === 'advance_payment') {
-            termsText += ' Ödeme şartları: %100 peşin ödeme.\n';
-        } else if (paymentTerms === 'partial_payment') {
-            termsText += ` Ödeme şartları: %${paymentPercentage} peşin, %${100 - paymentPercentage} teslimat öncesi.\n`;
-        } else if (paymentTerms === 'payment_on_delivery') {
-            termsText += ' Ödeme şartları: Teslimat sırasında tam ödeme.\n';
-        } else if (paymentTerms === 'installment') {
-            termsText += ` Ödeme şartları: %${paymentPercentage} peşin, kalan tutar 3 eşit taksitte.\n`;
-        }
+                termsText += ' Ödeme şartları: %100 peşin ödeme.\n';
+            } else if (paymentTerms === 'partial_payment') {
+                termsText += ` Ödeme şartları: %${paymentPercentage} peşin, %${100 - paymentPercentage} teslimat öncesi.\n`;
+            } else if (paymentTerms === 'payment_on_delivery') {
+                termsText += ' Ödeme şartları: Teslimat sırasında tam ödeme.\n';
+            } else if (paymentTerms === 'installment') {
+                termsText += ` Ödeme şartları: %${paymentPercentage} peşin, kalan tutar 3 eşit taksitte.\n`;
+            }
 
             // Teslimat süresi
             termsText += ` Teslimat süresi: Sipariş onayından itibaren ${deliveryDays} iş günüdür.\n`;

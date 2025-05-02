@@ -216,7 +216,8 @@ include 'includes/sidebar.php';
                             </thead>
                             <tbody>
                                 <?php foreach ($quotations as $quotation): ?>
-                                    <tr>
+                                    <tr class="clickable-row" data-href="view_quotation.php?id=<?php echo $quotation['id']; ?>"
+                                        style="cursor: pointer;">
                                         <td><?php echo htmlspecialchars($quotation['reference_no']); ?></td>
                                         <td><?php echo htmlspecialchars($quotation['customer_name']); ?></td>
                                         <td><?php echo date('d.m.Y', strtotime($quotation['date'])); ?></td>
@@ -250,8 +251,9 @@ include 'includes/sidebar.php';
                                                 <?php echo $statusText; ?>
                                             </span>
                                         </td>
-                                        <td>
+                                        <td onclick="event.stopPropagation();">
                                             <div class="btn-group" role="group">
+                                                <!-- İşlem butonları aynı kalacak -->
                                                 <a href="view_quotation.php?id=<?php echo $quotation['id']; ?>"
                                                     class="btn btn-sm btn-info action-btn" title="Görüntüle">
                                                     <i class="bi bi-eye"></i>
@@ -376,6 +378,16 @@ include 'includes/sidebar.php';
         var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
         deleteModal.show();
     }
+    
+    // Tıklanabilir satırlar için
+    document.addEventListener('DOMContentLoaded', function() {
+        const rows = document.querySelectorAll('.clickable-row');
+        rows.forEach(row => {
+            row.addEventListener('click', function() {
+                window.location.href = this.dataset.href;
+            });
+        });
+    });
 </script>
 </body>
 
