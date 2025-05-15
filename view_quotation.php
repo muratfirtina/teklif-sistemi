@@ -71,11 +71,12 @@ try {
         'email' => $quotation['user_email']
     ];
 
-    // 2. Teklif Kalemlerini Al
+    // 2. Teklif Kalemlerini Al (Color_hex bilgisini de dahil et)
     $stmtItems = $conn->prepare("
         SELECT qi.*,
             CASE WHEN qi.item_type = 'product' THEN p.name ELSE s.name END as item_name,
-            CASE WHEN qi.item_type = 'product' THEN p.code ELSE s.code END as item_code
+            CASE WHEN qi.item_type = 'product' THEN p.code ELSE s.code END as item_code,
+            CASE WHEN qi.item_type = 'product' THEN p.color_hex ELSE NULL END as color_hex
         FROM quotation_items qi
         LEFT JOIN products p ON qi.item_type = 'product' AND qi.item_id = p.id
         LEFT JOIN services s ON qi.item_type = 'service' AND qi.item_id = s.id
@@ -189,6 +190,16 @@ include 'includes/sidebar.php';
         .info-card dt { font-weight: 600; }
         .info-card dd { word-break: break-word; }
         .alert .btn { vertical-align: middle; } /* Uyarı içindeki butonu hizala */
+        
+        /* Renk kutusu için stil */
+        .color-box {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 1px solid #ddd;
+            vertical-align: middle;
+            border-radius: 3px;
+        }
     </style>
 
     <!-- Main Content -->
@@ -353,7 +364,21 @@ include 'includes/sidebar.php';
                                 <?php if (count($items) > 0): ?>
                                     <div class="table-responsive">
                                         <table class="table table-striped table-hover mb-0">
-                                            <thead class="table-light"><tr><th>#</th><th>Tür</th><th>Kod</th><th>Açıklama</th><th class="text-center">Miktar</th><th class="text-end">B.Fiyat</th><th class="text-center">İnd.%</th><th class="text-end">Tutar</th><th class="text-center">KDV%</th><th class="text-end">Toplam</th></tr></thead>
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Tür</th>
+                                                    <th>Kod</th>
+                                                    <th>Renk</th>
+                                                    <th>Açıklama</th>
+                                                    <th class="text-center">Miktar</th>
+                                                    <th class="text-end">B.Fiyat</th>
+                                                    <th class="text-center">İnd.%</th>
+                                                    <th class="text-end">Tutar</th>
+                                                    <th class="text-center">KDV%</th>
+                                                    <th class="text-end">Toplam</th>
+                                                </tr>
+                                            </thead>
                                             <tbody>
                                                 <?php $counter = 1; foreach ($items as $item):
                                                     $item_type = $item['item_type'] == 'product' ? 'Ürün' : 'Hizmet';
@@ -362,10 +387,23 @@ include 'includes/sidebar.php';
                                                     $subtotal = $quantity * $unit_price_after_discount; $tax_rate = $item['tax_rate']; $tax_amount = $subtotal * ($tax_rate / 100); $total_with_tax = $subtotal + $tax_amount;
                                                 ?>
                                                     <tr>
-                                                        <td><?php echo $counter++; ?></td><td><?php echo $item_type; ?></td><td><?php echo htmlspecialchars($item['item_code']); ?></td>
-                                                        <td><?php echo htmlspecialchars($item['description']); ?></td><td class="text-center"><?php echo $quantity; ?></td>
-                                                        <td class="text-end"><?php echo number_format($unit_price, 2, ',', '.') . ' ₺'; ?></td><td class="text-center"><?php echo $discount_percent; ?>%</td>
-                                                        <td class="text-end"><?php echo number_format($subtotal, 2, ',', '.') . ' ₺'; ?></td><td class="text-center"><?php echo $tax_rate; ?>%</td>
+                                                        <td><?php echo $counter++; ?></td>
+                                                        <td><?php echo $item_type; ?></td>
+                                                        <td><?php echo htmlspecialchars($item['item_code']); ?></td>
+                                                        <td>
+                                                            <?php if (!empty($item['color_hex'])): ?>
+                                                                <span class="color-box" style="background-color: <?php echo htmlspecialchars($item['color_hex']); ?>;" 
+                                                                      title="<?php echo htmlspecialchars($item['color_hex']); ?>"></span>
+                                                            <?php else: ?>
+                                                                -
+                                                            <?php endif; ?>
+                                                        </td>
+                                                        <td><?php echo htmlspecialchars($item['description']); ?></td>
+                                                        <td class="text-center"><?php echo $quantity; ?></td>
+                                                        <td class="text-end"><?php echo number_format($unit_price, 2, ',', '.') . ' ₺'; ?></td>
+                                                        <td class="text-center"><?php echo $discount_percent; ?>%</td>
+                                                        <td class="text-end"><?php echo number_format($subtotal, 2, ',', '.') . ' ₺'; ?></td>
+                                                        <td class="text-center"><?php echo $tax_rate; ?>%</td>
                                                         <td class="text-end fw-bold"><?php echo number_format($total_with_tax, 2, ',', '.') . ' ₺'; ?></td>
                                                     </tr>
                                                 <?php endforeach; ?>

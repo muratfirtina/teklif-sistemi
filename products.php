@@ -12,13 +12,13 @@ $conn = getDbConnection();
 // Ürün silme işlemi
 if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
     $id = $_GET['delete'];
-    
+
     try {
         // Önce bu ürüne ait teklif kalemleri olup olmadığını kontrol et
         $checkStmt = $conn->prepare("SELECT COUNT(*) FROM quotation_items WHERE item_type = 'product' AND item_id = :id");
         $checkStmt->bindParam(':id', $id, PDO::PARAM_INT);
         $checkStmt->execute();
-        
+
         if ($checkStmt->fetchColumn() > 0) {
             setMessage('error', 'Bu ürün tekliflerde kullanıldığı için silinemez.');
         } else {
@@ -26,21 +26,21 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
             $checkStmt = $conn->prepare("SELECT COUNT(*) FROM inventory_movements WHERE product_id = :id");
             $checkStmt->bindParam(':id', $id, PDO::PARAM_INT);
             $checkStmt->execute();
-            
+
             if ($checkStmt->fetchColumn() > 0) {
                 setMessage('error', 'Bu ürüne ait stok hareketleri olduğu için silinemez.');
             } else {
                 $deleteStmt = $conn->prepare("DELETE FROM products WHERE id = :id");
                 $deleteStmt->bindParam(':id', $id, PDO::PARAM_INT);
                 $deleteStmt->execute();
-                
+
                 setMessage('success', 'Ürün başarıyla silindi.');
             }
         }
     } catch(PDOException $e) {
         setMessage('error', 'Ürün silinirken bir hata oluştu: ' . $e->getMessage());
     }
-    
+
     header("Location: products.php");
     exit;
 }
@@ -48,7 +48,8 @@ if (isset($_GET['delete']) && is_numeric($_GET['delete'])) {
 // Ürün listesini al
 $products = [];
 try {
-    $stmt = $conn->query("SELECT * FROM products ORDER BY name ASC");
+    // color_hex sütununu da seçiyoruz
+    $stmt = $conn->query("SELECT id, code, name, description, price, tax_rate, stock_quantity, color_hex FROM products ORDER BY name ASC");
     $products = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch(PDOException $e) {
     setMessage('error', 'Ürün listesi alınırken bir hata oluştu: ' . $e->getMessage());
@@ -66,18 +67,18 @@ include 'includes/sidebar.php';
             <?php if ($successMessage = getMessage('success')): ?>
                 <div class="alert alert-success"><?php echo $successMessage; ?></div>
             <?php endif; ?>
-            
+
             <?php if ($errorMessage = getMessage('error')): ?>
                 <div class="alert alert-danger"><?php echo $errorMessage; ?></div>
             <?php endif; ?>
-            
+
             <div class="d-flex justify-content-between align-items-center mb-4">
                 <h1 class="h2">Ürünler</h1>
                 <a href="add_product.php" class="btn btn-primary">
                     <i class="bi bi-plus-circle"></i> Yeni Ürün Ekle
                 </a>
             </div>
-            
+
             <!-- Ürün Tablosu -->
             <div class="card">
                 <div class="card-body">
@@ -87,6 +88,7 @@ include 'includes/sidebar.php';
                                 <thead>
                                     <tr>
                                         <th>ID</th>
+                                        <th>Renk</th> <!-- Yeni Sütun -->
                                         <th>Ürün Kodu</th>
                                         <th>Ürün Adı</th>
                                         <th>Fiyat</th>
@@ -99,6 +101,13 @@ include 'includes/sidebar.php';
                                     <?php foreach ($products as $product): ?>
                                         <tr>
                                             <td><?php echo $product['id']; ?></td>
+                                            <td> <!-- Renk Sütunu -->
+                                                <?php if (!empty($product['color_hex'])): ?>
+                                                    <span style="display: inline-block; width: 20px; height: 20px; background-color: <?php echo htmlspecialchars($product['color_hex']); ?>; border: 1px solid #ccc; vertical-align: middle;" title="<?php echo htmlspecialchars($product['color_hex']); ?>"></span>
+                                                <?php else: ?>
+                                                    -
+                                                <?php endif; ?>
+                                            </td>
                                             <td><?php echo htmlspecialchars($product['code']); ?></td>
                                             <td><?php echo htmlspecialchars($product['name']); ?></td>
                                             <td><?php echo number_format($product['price'], 2, ',', '.') . ' ₺'; ?></td>
@@ -153,7 +162,7 @@ include 'includes/sidebar.php';
         function confirmDelete(id, name) {
             document.getElementById('deleteConfirmText').textContent = '"' + name + '" ürününü silmek istediğinizden emin misiniz?';
             document.getElementById('confirmDeleteBtn').href = 'products.php?delete=' + id;
-            
+
             var deleteModal = new bootstrap.Modal(document.getElementById('deleteModal'));
             deleteModal.show();
         }

@@ -23,15 +23,15 @@ try {
     $stmt = $conn->prepare("SELECT * FROM products WHERE id = :id");
     $stmt->bindParam(':id', $product_id);
     $stmt->execute();
-    
+
     if ($stmt->rowCount() == 0) {
         setMessage('error', 'Ürün bulunamadı.');
         header("Location: products.php");
         exit;
     }
-    
+
     $product = $stmt->fetch(PDO::FETCH_ASSOC);
-    
+
     // Ürüne ait teklif kalemlerini getir
     $stmt = $conn->prepare("
         SELECT qi.*, q.reference_no, q.date, q.status,
@@ -45,7 +45,7 @@ try {
     $stmt->bindParam(':product_id', $product_id);
     $stmt->execute();
     $quotation_items = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
     // Stok hareketlerini getir
     $stmt = $conn->prepare("
         SELECT im.*, u.username
@@ -57,7 +57,7 @@ try {
     $stmt->bindParam(':product_id', $product_id);
     $stmt->execute();
     $inventory_movements = $stmt->fetchAll(PDO::FETCH_ASSOC);
-    
+
 } catch(PDOException $e) {
     setMessage('error', 'Veritabanı hatası: ' . $e->getMessage());
     header("Location: products.php");
@@ -100,6 +100,15 @@ include 'includes/sidebar.php';
     .movement-card:hover {
         transform: translateY(-3px);
     }
+    /* YENİ: Renk kutusu için stil */
+    .color-swatch {
+        width: 25px;
+        height: 25px;
+        border-radius: 4px;
+        border: 1px solid #dee2e6;
+        display: inline-block;
+        vertical-align: middle;
+    }
 </style>
 
 <!-- Main Content -->
@@ -107,13 +116,13 @@ include 'includes/sidebar.php';
     <div class="container-fluid">
         <!-- Bildirimler -->
         <?php if ($successMessage = getMessage('success')): ?>
-            <div class="alert alert-success"><?php echo $successMessage; ?></div>
+            <div class="alert alert-success"><?php echo htmlspecialchars($successMessage); ?></div>
         <?php endif; ?>
-        
+
         <?php if ($errorMessage = getMessage('error')): ?>
-            <div class="alert alert-danger"><?php echo $errorMessage; ?></div>
+            <div class="alert alert-danger"><?php echo htmlspecialchars($errorMessage); ?></div>
         <?php endif; ?>
-        
+
         <div class="d-flex justify-content-between align-items-center mb-4">
             <h1 class="h2">Ürün Detayı</h1>
             <div>
@@ -125,56 +134,73 @@ include 'includes/sidebar.php';
                 </a>
             </div>
         </div>
-        
+
         <div class="row">
             <!-- Ürün Bilgileri -->
             <div class="col-md-4">
                 <div class="product-info">
                     <h4 class="mb-3"><?php echo htmlspecialchars($product['name']); ?></h4>
-                    
+
                     <div class="mb-3">
                         <div class="info-label">Ürün Kodu</div>
                         <div><?php echo htmlspecialchars($product['code']); ?></div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="info-label">Fiyat</div>
                         <div class="fw-bold"><?php echo number_format($product['price'], 2, ',', '.') . ' ₺'; ?></div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="info-label">KDV Oranı</div>
                         <div><?php echo '%' . number_format($product['tax_rate'], 2, ',', '.'); ?></div>
                     </div>
-                    
+
                     <div class="mb-3">
                         <div class="info-label">Stok Miktarı</div>
                         <div>
                             <?php
                                 if ($product['stock_quantity'] <= 0) {
                                     echo '<span class="badge bg-danger">Stok Yok</span>';
-                                } elseif ($product['stock_quantity'] < 5) {
-                                    echo '<span class="badge bg-warning">Kritik: ' . $product['stock_quantity'] . '</span>';
+                                } elseif ($product['stock_quantity'] < 5) { // Stok kritik seviyesi örneği
+                                    echo '<span class="badge bg-warning text-dark">Kritik: ' . $product['stock_quantity'] . '</span>';
                                 } else {
                                     echo '<span class="badge bg-success">' . $product['stock_quantity'] . '</span>';
                                 }
                             ?>
                         </div>
                     </div>
-                    
+
+                    <!-- YENİ: Ürün Rengi Gösterimi -->
+                    <?php if (!empty($product['color_hex']) && preg_match('/^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/', $product['color_hex'])): ?>
+                        <div class="mb-3">
+                            <div class="info-label">Ürün Rengi</div>
+                            <div>
+                                <span class="color-swatch" style="background-color: <?php echo htmlspecialchars($product['color_hex']); ?>;"></span>
+                                <span class="ms-2 align-middle"><?php echo htmlspecialchars($product['color_hex']); ?></span>
+                            </div>
+                        </div>
+                    <?php elseif (!empty($product['color_hex'])): // Eğer color_hex dolu ama geçersizse bilgi verilebilir. İsteğe bağlı.?>
+                        <div class="mb-3">
+                            <div class="info-label">Ürün Rengi</div>
+                            <div class="text-muted">Geçersiz renk kodu: <?php echo htmlspecialchars($product['color_hex']); ?></div>
+                        </div>
+                    <?php endif; ?>
+                    <!-- YENİ: Ürün Rengi Gösterimi Bitişi -->
+
                     <?php if (!empty($product['description'])): ?>
                         <div class="mb-3">
                             <div class="info-label">Açıklama</div>
                             <div><?php echo nl2br(htmlspecialchars($product['description'])); ?></div>
                         </div>
                     <?php endif; ?>
-                    
+
                     <div class="mb-3">
                         <div class="info-label">Kayıt Tarihi</div>
                         <div><?php echo date('d.m.Y H:i', strtotime($product['created_at'])); ?></div>
                     </div>
                 </div>
-                
+
                 <!-- Hızlı İşlemler Kartı -->
                 <div class="card mb-4">
                     <div class="card-header">
@@ -186,16 +212,16 @@ include 'includes/sidebar.php';
                                 <i class="bi bi-clipboard-data"></i> Stok Hareketleri
                             </a>
                             <a href="#" class="btn btn-success" data-bs-toggle="modal" data-bs-target="#addStockModal">
-                                <i class="bi bi-plus-circle"></i> Stok Ekle
+                                <i class="bi bi-plus-circle"></i> Stok Ekle/Çıkar
                             </a>
-                            <a href="new_quotation.php" class="btn btn-info">
+                            <a href="new_quotation.php?add_product_id=<?php echo $product_id; ?>" class="btn btn-info"> <!-- Örnek: Ürünü doğrudan yeni teklife ekleme linki -->
                                 <i class="bi bi-file-earmark-plus"></i> Yeni Teklife Ekle
                             </a>
                         </div>
                     </div>
                 </div>
             </div>
-            
+
             <!-- Ürün Teklifleri -->
             <div class="col-md-8">
                 <div class="card mb-4">
@@ -223,7 +249,7 @@ include 'includes/sidebar.php';
                                             <?php
                                                 $statusClass = 'secondary';
                                                 $statusText = 'Taslak';
-                                                
+
                                                 switch($item['status']) {
                                                     case 'sent':
                                                         $statusClass = 'primary';
@@ -238,11 +264,11 @@ include 'includes/sidebar.php';
                                                         $statusText = 'Reddedildi';
                                                         break;
                                                     case 'expired':
-                                                        $statusClass = 'warning';
+                                                        $statusClass = 'warning text-dark';
                                                         $statusText = 'Süresi Doldu';
                                                         break;
                                                 }
-                                                
+
                                                 // Hesaplamalar
                                                 $unit_price = $item['unit_price'];
                                                 $quantity = $item['quantity'];
@@ -279,7 +305,7 @@ include 'includes/sidebar.php';
                         <?php endif; ?>
                     </div>
                 </div>
-                
+
                 <!-- Stok Hareketleri -->
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
@@ -296,7 +322,7 @@ include 'includes/sidebar.php';
                                         $movementClass = '';
                                         $movementIcon = '';
                                         $movementText = '';
-                                        
+
                                         switch($movement['movement_type']) {
                                             case 'in':
                                                 $movementClass = '';
@@ -320,7 +346,7 @@ include 'includes/sidebar.php';
                                             <div class="d-flex justify-content-between align-items-center">
                                                 <div>
                                                     <i class="bi <?php echo $movementIcon; ?> me-2"></i>
-                                                    <strong><?php echo $movementText; ?>:</strong> 
+                                                    <strong><?php echo $movementText; ?>:</strong>
                                                     <?php echo $movement['quantity']; ?> adet
                                                     <small class="text-muted ms-2">
                                                         (<?php echo date('d.m.Y H:i', strtotime($movement['created_at'])); ?>)
@@ -340,7 +366,7 @@ include 'includes/sidebar.php';
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
-                                
+
                                 <?php if (count($inventory_movements) > 5): ?>
                                     <div class="text-center mt-3">
                                         <a href="inventory.php?product_id=<?php echo $product_id; ?>" class="btn btn-sm btn-outline-primary">
@@ -366,41 +392,68 @@ include 'includes/sidebar.php';
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="addStockModalLabel">Stok Hareketi Ekle</h5>
+                <h5 class="modal-title" id="addStockModalLabel">Stok Hareketi Ekle/Çıkar</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
-            <form action="inventory.php" method="post">
+            <form action="add_inventory_movement.php" method="post"> <!-- Form action'ı uygun bir dosyaya yönlendirilmeli -->
                 <div class="modal-body">
                     <input type="hidden" name="product_id" value="<?php echo $product_id; ?>">
-                    
+                    <input type="hidden" name="user_id" value="<?php echo $_SESSION['user_id']; // Kullanıcı ID'si session'dan alınmalı ?>">
+                    <input type="hidden" name="reference_type" value="manual">
+
+
                     <div class="mb-3">
                         <label for="movement_type" class="form-label">Hareket Türü <span class="text-danger">*</span></label>
                         <select class="form-select" id="movement_type" name="movement_type" required>
                             <option value="in">Stok Girişi</option>
                             <option value="out">Stok Çıkışı</option>
-                            <option value="adjustment">Stok Düzeltme</option>
+                            <option value="adjustment">Stok Düzeltme (Yeni Miktar)</option>
                         </select>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="quantity" class="form-label">Miktar <span class="text-danger">*</span></label>
-                        <input type="number" class="form-control" id="quantity" name="quantity" min="1" value="1" required>
+                        <input type="number" class="form-control" id="quantity" name="quantity" min="0" value="1" required>
+                        <small id="quantity_help" class="form-text text-muted">Stok düzeltme için yeni toplam stok miktarını girin.</small>
                     </div>
-                    
+
                     <div class="mb-3">
                         <label for="notes" class="form-label">Notlar</label>
-                        <textarea class="form-control" id="notes" name="notes" rows="3"></textarea>
+                        <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Örn: Manuel sayım sonucu düzeltme"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">İptal</button>
-                    <button type="submit" class="btn btn-primary">Kaydet</button>
+                    <button type="submit" name="add_movement_submit" class="btn btn-primary">Kaydet</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
+<?php
+// Footer ve script'ler
+include 'includes/footer_scripts.php'; // Eğer varsa, yoksa doğrudan script'leri ekleyin
+?>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const movementTypeSelect = document.getElementById('movement_type');
+    const quantityInput = document.getElementById('quantity');
+    const quantityHelp = document.getElementById('quantity_help');
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    if (movementTypeSelect && quantityHelp) {
+        function toggleQuantityHelp() {
+            if (movementTypeSelect.value === 'adjustment') {
+                quantityHelp.style.display = 'block';
+                quantityInput.min = "0"; // Düzeltme için stok 0 olabilir.
+            } else {
+                quantityHelp.style.display = 'none';
+                quantityInput.min = "1"; // Giriş/Çıkış için en az 1
+            }
+        }
+        movementTypeSelect.addEventListener('change', toggleQuantityHelp);
+        toggleQuantityHelp(); // Sayfa yüklendiğinde de kontrol et
+    }
+});
+</script>
 </body>
 </html>

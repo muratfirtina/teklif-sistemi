@@ -186,3 +186,6 @@ VALUES ('admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi',
 ALTER TABLE users
 ADD COLUMN email_signature TEXT NULL DEFAULT NULL AFTER role,
 ADD COLUMN signature_image VARCHAR(255) NULL DEFAULT NULL AFTER email_signature;
+
+ALTER TABLE products
+ADD COLUMN color_hex VARCHAR(7) NULL DEFAULT NULL COMMENT 'Ürün rengi HEX kodu (örn: #FF0000)';

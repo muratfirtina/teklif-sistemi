@@ -5,7 +5,7 @@
 # Environment variables file (varsa)
 .env
 
-config/database.php 
+config/database.prod.php
 
 # Log files
 *.log

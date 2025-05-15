@@ -272,10 +272,11 @@ class MYPDF_Quotation extends TCPDF
         }
 
         // Header Ayırıcı Çizgi
-        $separatorY = $this->GetY() + 12; // Sağdaki metnin hemen altı
+        $separatorY = 22; // Logodan sonra daha fazla boşluk bırak (önceki değer: $this->GetY() + 12)
         $this->SetY($separatorY);
         $this->SetLineStyle(['width' => 0.2, 'color' => [200, 200, 200]]); // İnce gri çizgi
         $this->Line($this->original_lMargin, $this->GetY(), $this->getPageWidth() - $this->original_rMargin, $this->GetY());
+    
         
     }
     
@@ -342,7 +343,7 @@ $pdf->setPrintHeader(true);
 $pdf->setPrintFooter(true);
 
 // Kenar Boşlukları (Sol, Üst, Sağ)
-$pdf->SetMargins(15, 20, 15);
+$pdf->SetMargins(15, 25, 15);
 $pdf->SetHeaderMargin(5);
 $pdf->SetFooterMargin(28);
 
@@ -370,7 +371,7 @@ $totalRowBgColor = $primaryColorArray;
 $totalRowTextColor = [255, 255, 255];
 
 // 1. Teklif No ve Tarih Kutusu
-$pdf->Ln(5);
+$pdf->Ln(1);
 $html = '
 <table cellpadding="0" cellspacing="4" border="0" style="width: 100%;">
     <tr>
@@ -440,7 +441,7 @@ $pdf->SetLineWidth(0.3);
 // Başlık Hücreleri - "Tür" sütunu kaldırıldı
 $header = ['S.N', 'Kod', 'Açıklama', 'Miktar', 'Birim F.', 'İnd.%', 'Ara Top.', 'Toplam'];
 // Genişlikleri ayarla - Tür sütununun genişliği Ara Toplam ve Toplam'a eklendi
-$w = [8, 16, 48, 18, 22, 12, 28, 28]; // "Tür" sütunu (12) kaldırıldı, Ara Toplam ve Toplam +6 birim genişletildi
+$w = [8, 12, 66, 14, 18, 14, 24, 24]; // "Tür" sütunu (12) kaldırıldı, Ara Toplam ve Toplam +6 birim genişletildi
 $num_headers = count($header);
 for ($i = 0; $i < $num_headers; ++$i) {
     $align = 'C'; // Varsayılan orta
@@ -477,18 +478,16 @@ foreach ($items as $item) {
     $min_cell_height = 6;
     $row_height = max($row_height, $min_cell_height);
 
-    // Satırı yazdır - "Tür" sütunu kaldırıldı
-    $pdf->Cell($w[0], $row_height, $counter++, 1, 0, 'C', $fill, '', 0, false, 'T', 'M');
-    // Tür sütunu kaldırıldı, sonraki sütunlar bir öne kaydırıldı
+    $pdf->Cell($w[0], $row_height, $counter++, 1, 0, 'C', false, '', 0, false, 'T', 'M');
     $pdf->Cell($w[1], $row_height, htmlspecialchars($item['item_code'] ?? '-'), 1, 0, 'L', false, '', 0, false, 'T', 'M');
-    $pdf->MultiCell($w[2], $row_height, htmlspecialchars($item['description'] ?? ($item['item_name'] ?? '')), 1, 'L', $fill, 0, '', '', true, 0, false, true, $row_height, 'M');
+    $pdf->MultiCell($w[2], $row_height, htmlspecialchars($item['description'] ?? ($item['item_name'] ?? '')), 1, 'L', false, 0, '', '', true, 0, false, true, $row_height, 'M');
     $pdf->Cell($w[3], $row_height, number_format($quantity, 0, ',', '.'), 1, 0, 'C', false, '', 0, false, 'T', 'M');
     $pdf->Cell($w[4], $row_height, formatCurrencyTR($unit_price), 1, 0, 'R', false, '', 0, false, 'T', 'M');
     $pdf->Cell($w[5], $row_height, number_format($discount_percent, 0) . '%', 1, 0, 'C', false, '', 0, false, 'T', 'M');
     $pdf->Cell($w[6], $row_height, formatCurrencyTR($line_subtotal_before_tax), 1, 0, 'R', false, '', 0, false, 'T', 'M');
     $pdf->Cell($w[7], $row_height, formatCurrencyTR($line_total_with_tax), 1, 1, 'R', false, '', 0, false, 'T', 'M');
 
-    $fill = !$fill;
+   
 }
 $pdf->Ln(1);
 
@@ -529,9 +528,8 @@ $html .= '    <tr class="total-row" style="background-color: rgb(' . implode(','
 $pdf->writeHTML($html, true, false, true, false, '');
 $pdf->Ln(-3);
 
-
-// 6. Ödeme Bilgileri
-$html_payment_section = '';
+// 6. Ödeme Bilgileri - Tablo Formatında (Varsayılan ve Şube Yok)
+$html_payment_title = '';
 if (!empty($bankAccounts)) {
     // Sadece başlığı HTML olarak hazırla
     $html_payment_title = '<div class="section-box">
@@ -634,14 +632,14 @@ $html_signature = '
         <td class="signature-box" width="48%" align="center">
             <strong>Teklifi Veren</strong>
             <br/>' . htmlspecialchars($user['name']) . '<br/>
-            ' . htmlspecialchars($companySettings['company_name']) . '
+            
         </td>
         <td width="4%"></td>
         <td class="signature-box" width="48%" align="center">
-            <strong>Teklifi Onaylayan</strong><br/>
-        </td>
-    </tr>
-</table>';
+            <strong>Teklifi Onaylayan</strong><br/>(Ad Soyad)-(Kaşe / İmza)<br/>
+            </td>
+        </tr>
+        </table>';
 
 // Sayfa Sonu Elemanlarını Yazdır
 if (!empty($html_payment)) {

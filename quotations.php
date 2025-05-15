@@ -304,21 +304,6 @@ include 'includes/sidebar.php';
                                                         class="btn btn-sm btn-primary action-btn" title="Word">
                                                         <i class="bi bi-file-word"></i>
                                                     </a>
-                                                    <button type="button" class="btn btn-sm btn-secondary action-btn"
-                                                        data-bs-toggle="dropdown" aria-expanded="false" title="Durum Değiştir">
-                                                        <i class="bi bi-arrow-down-up"></i>
-                                                    </button>
-
-                                                    <ul class="dropdown-menu">
-                                                        <?php foreach ($statusMap as $statusCode => $statusInfo): ?>
-                                                            <li>
-                                                                <a class="dropdown-item <?php echo $quotation['status'] == $statusCode ? 'active' : ''; ?>"
-                                                                    href="update_quotation_status.php?id=<?php echo $quotation['id']; ?>&status=<?php echo $statusCode; ?>&origin=list">
-                                                                    <?php echo $statusInfo['text']; ?>
-                                                                </a>
-                                                            </li>
-                                                        <?php endforeach; ?>
-                                                    </ul>
                                                     <a href="javascript:void(0);"
                                                         onclick="confirmDelete(<?php echo $quotation['id']; ?>, '<?php echo htmlspecialchars(addslashes($quotation['reference_no'])); ?>')"
                                                         class="btn btn-sm btn-danger action-btn" title="Sil">
