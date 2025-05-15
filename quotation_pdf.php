@@ -529,8 +529,9 @@ $html .= '    <tr class="total-row" style="background-color: rgb(' . implode(','
 $pdf->writeHTML($html, true, false, true, false, '');
 $pdf->Ln(-3);
 
-// 6. Ödeme Bilgileri - Tablo Formatında (Varsayılan ve Şube Yok)
-$html_payment_title = '';
+
+// 6. Ödeme Bilgileri
+$html_payment_section = '';
 if (!empty($bankAccounts)) {
     // Sadece başlığı HTML olarak hazırla
     $html_payment_title = '<div class="section-box">
