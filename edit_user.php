@@ -65,7 +65,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST") {
         $errors[] = "Geçerli bir e-posta adresi giriniz.";
     if (empty($full_name))
         $errors[] = "Ad Soyad zorunludur.";
-    if (!in_array($role, ['admin', 'user']))
+    if (!in_array($role, ['admin', 'user', 'production']))
         $errors[] = "Geçerli bir kullanıcı rolü seçiniz.";
     if (!empty($password)) {
         if (strlen($password) < 6)
