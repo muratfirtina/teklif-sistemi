@@ -175,8 +175,8 @@ $pageTitle = 'Yeni Teklif Oluştur';
 $currentPage = 'quotations';
 include 'includes/header.php';
 // YENİ: Select2 CSS (CDN'den) - Projenize uygun şekilde ekleyin
-echo '<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />';
-echo '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />'; // Bootstrap 5 teması
+echo '<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />';
+echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-5-theme/1.3.0/select2-bootstrap-5-theme.min.css" />';
 // -----
 include 'includes/navbar.php';
 include 'includes/sidebar.php';
@@ -744,500 +744,544 @@ include 'includes/sidebar.php';
 </template>
 
 <!-- ÖNEMLİ: Bu scriptler sayfanın en altında olmalı ve bu sırayla yüklenmeli -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
 
 <script>
     // Ürün verilerini JS'de kullanmak üzere
-    const productsData = <?php echo json_encode($products); ?>;
-    const servicesData = <?php echo json_encode($services); ?>; // Kullanılmıyor ama kalsın
-    let bulkSelectModal;
+    // Ürün verilerini JS'de kullanmak üzere
+const productsData = <?php echo json_encode($products); ?>;
+const servicesData = <?php echo json_encode($services); ?>; // Kullanılmıyor ama kalsın
+let bulkSelectModal;
 
-    // Select2 için seçenek formatlama fonksiyonu
-    function formatProductOption(product) {
-        if (!product.id) { return product.text; } // Arama kutusu için
+// Select2 için seçenek formatlama fonksiyonu
+function formatProductOption(product) {
+    if (!product.id) { return product.text; } // Arama kutusu için
 
-        var colorHex = $(product.element).data('color-hex');
-        var colorSwatchHtml = '';
-        if (colorHex && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(colorHex)) {
-            colorSwatchHtml = `<span class="select2-color-swatch" style="background-color: ${colorHex};"></span>`;
-        }
-        // Ürün bilgilerini (kod, ad, fiyat) ve renk kutucuğunu içeren HTML
-        var $option = $(
-            `<span>${colorSwatchHtml}${product.text}</span>`
-        );
-        return $option;
+    var colorHex = $(product.element).data('color-hex');
+    var colorSwatchHtml = '';
+    if (colorHex && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(colorHex)) {
+        colorSwatchHtml = `<span class="select2-color-swatch" style="background-color: ${colorHex};"></span>`;
     }
+    // Ürün bilgilerini (kod, ad, fiyat) ve renk kutucuğunu içeren HTML
+    var $option = $(
+        `<span>${colorSwatchHtml}${product.text}</span>`
+    );
+    return $option;
+}
 
-    function initializeSelect2(selectElement) {
-        $(selectElement).select2({
-            theme: "bootstrap-5", // Bootstrap 5 teması
-            placeholder: "Ürün seçin",
-            templateResult: formatProductOption, // Dropdown listesindeki seçenekler için
-            templateSelection: formatProductOption, // Seçili olan seçenek için
-            escapeMarkup: function(markup) { return markup; } // HTML'i olduğu gibi işle
-        }).on('select2:select', function (e) {
-            // Select2'den seçim yapıldığında handleItemIdChange'i tetikle
-            handleItemIdChange(this);
-        });
-    }
-
-    function formatCurrency(value) {
-        const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').replace(',', '.') || 0);
-        return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(num);
-    }
-    
-    function formatNumberForInput(value) {
-        const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').replace(',', '.') || 0);
-        return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    
-    function prepareNumberForServer(value) {
-        return String(value).replace(/\./g, '').replace(',', '.');
-    }
-
-    document.addEventListener('DOMContentLoaded', function () {
-        console.log("DOM fully loaded, setting up event handlers");
-        
-        // Bootstrap kontrolü
-        if (typeof bootstrap === 'undefined') {
-            console.error('Bootstrap JS yüklenemedi! Modal çalışmayacak.');
-        } else {
-            console.log('Bootstrap yüklendi: ', bootstrap.version);
-            
-            // Modal elementini al
-            const modalElement = document.getElementById('bulkSelectModal');
-            if (modalElement) {
-                bulkSelectModal = new bootstrap.Modal(modalElement);
-                console.log('Modal başarıyla başlatıldı');
-            } else {
-                console.error('Modal elementi bulunamadı!');
-            }
-        }
-        
-        const itemsContainer = document.getElementById('items-container');
-        
-        // Tek ürün ekleme butonunu bağla
-        const addItemBtn = document.getElementById('addItemBtn');
-        if (addItemBtn) {
-            addItemBtn.addEventListener('click', function() {
-                console.log('Tek ürün ekle butonuna tıklandı');
-                addNewItem(itemsContainer);
-            });
-        }
-        
-        // Çoklu ürün seçme butonunu bağla
-        const openBulkSelectBtn = document.getElementById('openBulkSelectBtn');
-        if (openBulkSelectBtn) {
-            openBulkSelectBtn.addEventListener('click', function() {
-                console.log('Çoklu ürün seç butonuna tıklandı');
-                
-                if (bulkSelectModal) {
-                    // Modalı açmadan önce seçimleri temizle
-                    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-                        checkbox.checked = false;
-                    });
-                    
-                    const selectAllCheckbox = document.getElementById('selectAllProducts');
-                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                    
-                    const selectedCountSpan = document.getElementById('selectedCount');
-                    if (selectedCountSpan) selectedCountSpan.textContent = '0';
-                    
-                    const searchInput = document.getElementById('productSearchInput');
-                    if (searchInput) searchInput.value = '';
-                    
-                    // Filtreyi temizle
-                    document.querySelectorAll('.product-row').forEach(row => {
-                        row.style.display = '';
-                    });
-                    
-                    bulkSelectModal.show();
-                } else {
-                    console.error('Modal henüz başlatılmadı!');
-                    alert('Çoklu ürün seçim modalı yüklenemedi. Lütfen sayfayı yenileyin veya yönetici ile iletişime geçin.');
-                }
-            });
-        }
-        
-        // Mevcut item-row'lara event listener'ları bağla
-        if (itemsContainer) {
-            itemsContainer.querySelectorAll('.item-row').forEach(row => {
-                attachEventListenersToRow(row);
-                
-                // Mevcut satırlardaki select2'leri başlat
-                const itemIdSelect = row.querySelector('.item-id-select');
-                if (itemIdSelect) {
-                    initializeSelect2(itemIdSelect);
-                }
-            });
-            
-            // ÖNEMLİ DEĞİŞİKLİK: Başlangıçta otomatik item row eklemeyi kaldırıyoruz
-            // Sadece form submitten sonra hata varsa item-row'ları tekrar gösteriyoruz
-            // Bu, boş item-row eklenmemesini sağlar
-        }
-
-        updateTotals();
-        updateTermsAndConditions();
-        
-        // Şartlar ve koşullar alanları için event listener'ları
-        const termsRelatedFields = [
-            'payment_terms', 'payment_percentage', 'delivery_days',
-            // 'warranty_period', 'installation_included', // Bu alanlar kaldırıldı
-            'transportation_included', 'custom_terms',
-            'date', 'valid_until'
-        ];
-        
-        termsRelatedFields.forEach(fieldId => {
-            const field = document.getElementById(fieldId);
-            if (field) {
-                const eventType = (field.type === 'checkbox' || field.tagName === 'SELECT' || field.type === 'date') ? 'change' : 'input';
-                field.addEventListener(eventType, updateTermsAndConditions);
-            }
-        });
-        
-        // Modal içi event listener'ları bağla
-        setupModalEventListeners();
-        setupBulkEditFeatures();
-        
-        // Her satırdaki miktar, fiyat, indirim, kdv değişiklikleri için event listener'ları ekle
-        document.querySelectorAll('.product-table .product-row').forEach(row => {
-            attachRowCalculationListeners(row);
-        });
+function initializeSelect2(selectElement) {
+    $(selectElement).select2({
+        theme: "bootstrap-5", // Bootstrap 5 teması
+        placeholder: "Ürün seçin",
+        templateResult: formatProductOption, // Dropdown listesindeki seçenekler için
+        templateSelection: formatProductOption, // Seçili olan seçenek için
+        escapeMarkup: function(markup) { return markup; } // HTML'i olduğu gibi işle
+    }).on('select2:select', function (e) {
+        // Select2'den seçim yapıldığında handleItemIdChange'i tetikle
+        handleItemIdChange(this);
     });
+}
 
-    function setupModalEventListeners() {
-        // Tümünü seç checkbox'ı
-        const selectAllCheckbox = document.getElementById('selectAllProducts');
-        if (selectAllCheckbox) {
-            selectAllCheckbox.addEventListener('change', function() {
-                const isChecked = this.checked;
-                let visibleCheckboxCount = 0;
-                
-                document.querySelectorAll('.product-row').forEach(row => {
-                    if (row.style.display !== 'none') {
-                        const checkbox = row.querySelector('.product-checkbox');
-                        if (checkbox) {
-                            checkbox.checked = isChecked;
-                            visibleCheckboxCount++;
-                        }
-                    }
-                });
-                
-                updateSelectedCount();
-                calculateModalTotalAmount();
-            });
+function formatCurrency(value) {
+    const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').replace(',', '.') || 0);
+    return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(num);
+}
+
+function formatNumberForInput(value) {
+    const num = parseFloat(String(value).replace(/[^0-9.,-]/g, '').replace(',', '.') || 0);
+    return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function prepareNumberForServer(value) {
+    return String(value).replace(/\./g, '').replace(',', '.');
+}
+
+// Yardımcı fonksiyon: Element'e event listener eklenmişmi kontrol et
+function hasNumericListeners(element) {
+    return element.hasAttribute('data-numeric-initialized');
+}
+
+// Yardımcı fonksiyon: Numeric input davranışını ekle
+function addNumericInputBehavior(input, updateCallback = null) {
+    // Eğer zaten eklenmiş ise tekrar ekleme
+    if (hasNumericListeners(input)) {
+        return;
+    }
+    
+    input.setAttribute('data-numeric-initialized', 'true');
+    
+    input.addEventListener('focus', (e) => { 
+        e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
+    });
+    
+    input.addEventListener('blur', (e) => { 
+        e.target.value = formatNumberForInput(e.target.value);
+        if (updateCallback) updateCallback();
+    });
+    
+    input.addEventListener('input', (e) => {
+        const caretPosition = e.target.selectionStart; 
+        const originalValue = e.target.value;
+        let value = e.target.value.replace(/[^0-9,.]/g, '');
+        let commaCount = (value.match(/,/g) || []).length;
+        
+        if (commaCount > 1) { 
+            const firstCommaIndex = value.indexOf(','); 
+            value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
         }
         
-        // Tek tek checkbox'ları seçme
-        document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-            checkbox.addEventListener('change', function() {
-                updateSelectedCount();
-                calculateModalTotalAmount();
-                
-                // Checkbox işaretlendiğinde satırı seçili olarak işaretle
-                const row = this.closest('.product-row');
-                if (row) {
-                    if (this.checked) {
-                        row.classList.add('selected');
-                    } else {
-                        row.classList.remove('selected');
-                    }
-                }
-            });
+        e.target.value = value;
+        
+        if (e.target.value !== originalValue) { 
+            if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
+        }
+        
+        if (updateCallback) updateCallback();
+    });
+}
+
+document.addEventListener('DOMContentLoaded', function () {
+    console.log("DOM fully loaded, setting up event handlers");
+    
+    // Bootstrap kontrolü
+    if (typeof bootstrap === 'undefined') {
+        console.error('Bootstrap JS yüklenemedi! Modal çalışmayacak.');
+    } else {
+        console.log('Bootstrap yüklendi: ', bootstrap.version);
+        
+        // Modal elementini al
+        const modalElement = document.getElementById('bulkSelectModal');
+        if (modalElement) {
+            bulkSelectModal = new bootstrap.Modal(modalElement);
+            console.log('Modal başarıyla başlatıldı');
+        } else {
+            console.error('Modal elementi bulunamadı!');
+        }
+    }
+    
+    const itemsContainer = document.getElementById('items-container');
+    
+    // Tek ürün ekleme butonunu bağla
+    const addItemBtn = document.getElementById('addItemBtn');
+    if (addItemBtn) {
+        addItemBtn.addEventListener('click', function() {
+            console.log('Tek ürün ekle butonuna tıklandı');
+            addNewItem(itemsContainer);
         });
-        
-        // Arama işlevi
-        const searchInput = document.getElementById('productSearchInput');
-        if (searchInput) {
-            searchInput.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase().trim();
-                
-                document.querySelectorAll('.product-row').forEach(row => {
-                    const codeCell = row.querySelector('td:nth-child(2)');
-                    const nameCell = row.querySelector('td:nth-child(3)');
-                    
-                    if (codeCell && nameCell) {
-                        const productCode = codeCell.textContent.toLowerCase();
-                        const productName = nameCell.textContent.toLowerCase();
-                        
-                        if (productCode.includes(searchTerm) || productName.includes(searchTerm)) {
-                            row.style.display = '';
-                        } else {
-                            row.style.display = 'none';
-                        }
-                    }
+    }
+    
+    // Çoklu ürün seçme butonunu bağla
+    const openBulkSelectBtn = document.getElementById('openBulkSelectBtn');
+    if (openBulkSelectBtn) {
+        openBulkSelectBtn.addEventListener('click', function() {
+            console.log('Çoklu ürün seç butonuna tıklandı');
+            
+            if (bulkSelectModal) {
+                // Modalı açmadan önce seçimleri temizle
+                document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+                    checkbox.checked = false;
                 });
                 
-                // Tümünü seç checkbox'ını sıfırla
+                const selectAllCheckbox = document.getElementById('selectAllProducts');
                 if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                updateSelectedCount();
-                calculateModalTotalAmount();
-            });
-        }
-        
-        // Arama temizleme butonu
-        const clearSearchBtn = document.getElementById('clearSearchBtn');
-        if (clearSearchBtn && searchInput) {
-            clearSearchBtn.addEventListener('click', function() {
-                searchInput.value = '';
                 
+                const selectedCountSpan = document.getElementById('selectedCount');
+                if (selectedCountSpan) selectedCountSpan.textContent = '0';
+                
+                const searchInput = document.getElementById('productSearchInput');
+                if (searchInput) searchInput.value = '';
+                
+                // Filtreyi temizle
                 document.querySelectorAll('.product-row').forEach(row => {
                     row.style.display = '';
                 });
                 
-                // Tümünü seç checkbox'ını sıfırla
-                if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                updateSelectedCount();
-                calculateModalTotalAmount();
-            });
-        }
-        
-        // Seçilen ürünleri ekle butonu
-        const addSelectedProductsBtn = document.getElementById('addSelectedProductsBtn');
-        if (addSelectedProductsBtn) {
-            addSelectedProductsBtn.addEventListener('click', function() {
-                const selectedProducts = [];
-                
-                document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
-                    // Checkbox'ın bulunduğu satırı al
-                    const row = checkbox.closest('.product-row');
-                    
-                    // Satırdaki değerleri al
-                    const quantity = row.querySelector('.product-quantity').value;
-                    const price = row.querySelector('.product-price').value;
-                    const discount = row.querySelector('.product-discount').value;
-                    const tax = row.querySelector('.product-tax').value;
-                    
-                    selectedProducts.push({
-                        id: checkbox.dataset.id,
-                        code: checkbox.dataset.code,
-                        name: checkbox.dataset.name,
-                        color: checkbox.dataset.color,
-                        quantity: prepareNumberForServer(quantity),
-                        price: prepareNumberForServer(price),
-                        discount: prepareNumberForServer(discount),
-                        tax: prepareNumberForServer(tax)
-                    });
-                });
-                
-                if (selectedProducts.length > 0) {
-                    addSelectedProductsWithSettings(selectedProducts);
-                    if (bulkSelectModal) bulkSelectModal.hide();
-                } else {
-                    alert('Lütfen en az bir ürün seçin.');
-                }
-            });
-        }
+                bulkSelectModal.show();
+            } else {
+                console.error('Modal henüz başlatılmadı!');
+                alert('Çoklu ürün seçim modalı yüklenemedi. Lütfen sayfayı yenileyin veya yönetici ile iletişime geçin.');
+            }
+        });
+    }
+    
+    // Mevcut item-row'lara event listener'ları bağla
+    if (itemsContainer) {
+        itemsContainer.querySelectorAll('.item-row').forEach(row => {
+            attachEventListenersToRow(row);
+            
+            // Mevcut satırlardaki select2'leri başlat
+            const itemIdSelect = row.querySelector('.item-id-select');
+            if (itemIdSelect) {
+                initializeSelect2(itemIdSelect);
+            }
+        });
     }
 
-    function setupBulkEditFeatures() {
-        // Toplu Düzenleme butonuna tıklanınca
-        const applyBulkSettingsBtn = document.getElementById('applyBulkSettings');
-        if (applyBulkSettingsBtn) {
-            applyBulkSettingsBtn.addEventListener('click', function() {
-                const bulkQuantity = document.getElementById('bulkQuantity').value;
-                const bulkPrice = document.getElementById('bulkPrice').value;
-                const bulkDiscount = document.getElementById('bulkDiscount').value;
-                const bulkTax = document.getElementById('bulkTax').value;
-                const useOriginalPrices = document.getElementById('useOriginalPrices').checked;
-                
-                // Seçili ürünleri bul
-                document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
-                    const row = checkbox.closest('.product-row');
-                    
-                    // Miktar değerini güncelle
-                    if (bulkQuantity) {
-                        row.querySelector('.product-quantity').value = bulkQuantity;
-                    }
-                    
-                    // Birim fiyat değerini güncelle
-                    if (!useOriginalPrices && bulkPrice) {
-                        row.querySelector('.product-price').value = bulkPrice;
-                    }
-                    
-                    // İndirim değerini güncelle
-                    if (bulkDiscount) {
-                        row.querySelector('.product-discount').value = bulkDiscount;
-                    }
-                    
-                    // KDV değerini güncelle
-                    if (bulkTax) {
-                        row.querySelector('.product-tax').value = bulkTax;
-                    }
-                    
-                    // Satır toplamını güncelle
-                    calculateRowTotal(row);
-                });
-                
-                // Modal toplamını güncelle
-                calculateModalTotalAmount();
-            });
+    updateTotals();
+    updateTermsAndConditions();
+    
+    // Şartlar ve koşullar alanları için event listener'ları
+    const termsRelatedFields = [
+        'payment_terms', 'payment_percentage', 'delivery_days',
+        'transportation_included', 'custom_terms',
+        'date', 'valid_until'
+    ];
+    
+    termsRelatedFields.forEach(fieldId => {
+        const field = document.getElementById(fieldId);
+        if (field) {
+            const eventType = (field.type === 'checkbox' || field.tagName === 'SELECT' || field.type === 'date') ? 'change' : 'input';
+            field.addEventListener(eventType, updateTermsAndConditions);
         }
-        
-        // "Ürün fiyatlarını kullan" checkbox'ı değişince
-        const useOriginalPricesCheckbox = document.getElementById('useOriginalPrices');
-        const bulkPriceInput = document.getElementById('bulkPrice');
-        
-        if (useOriginalPricesCheckbox && bulkPriceInput) {
-            useOriginalPricesCheckbox.addEventListener('change', function() {
-                bulkPriceInput.disabled = this.checked;
+    });
+    
+    // Modal içi event listener'ları bağla
+    setupModalEventListeners();
+    setupBulkEditFeatures();
+});
+
+function setupModalEventListeners() {
+    // Tümünü seç checkbox'ı
+    const selectAllCheckbox = document.getElementById('selectAllProducts');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.addEventListener('change', function() {
+            const isChecked = this.checked;
+            let visibleCheckboxCount = 0;
+            
+            document.querySelectorAll('.product-row').forEach(row => {
+                if (row.style.display !== 'none') {
+                    const checkbox = row.querySelector('.product-checkbox');
+                    if (checkbox) {
+                        checkbox.checked = isChecked;
+                        visibleCheckboxCount++;
+                    }
+                }
+            });
+            
+            updateSelectedCount();
+            calculateModalTotalAmount();
+        });
+    }
+    
+    // Tek tek checkbox'ları seçme
+    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            updateSelectedCount();
+            calculateModalTotalAmount();
+            
+            // Checkbox işaretlendiğinde satırı seçili olarak işaretle
+            const row = this.closest('.product-row');
+            if (row) {
                 if (this.checked) {
-                    bulkPriceInput.placeholder = "Mevcut fiyatları kullan";
-                    bulkPriceInput.value = '';
+                    row.classList.add('selected');
                 } else {
-                    bulkPriceInput.placeholder = "Toplu fiyat girin";
+                    row.classList.remove('selected');
+                }
+            }
+        });
+    });
+    
+    // Arama işlevi
+    const searchInput = document.getElementById('productSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase().trim();
+            
+            document.querySelectorAll('.product-row').forEach(row => {
+                const codeCell = row.querySelector('td:nth-child(2)');
+                const nameCell = row.querySelector('td:nth-child(3)');
+                
+                if (codeCell && nameCell) {
+                    const productCode = codeCell.textContent.toLowerCase();
+                    const productName = nameCell.textContent.toLowerCase();
+                    
+                    if (productCode.includes(searchTerm) || productName.includes(searchTerm)) {
+                        row.style.display = '';
+                    } else {
+                        row.style.display = 'none';
+                    }
                 }
             });
             
-            // Sayfa yüklendiğinde durumu ayarla
-            bulkPriceInput.disabled = useOriginalPricesCheckbox.checked;
-        }
-        
-        // Numerik giriş kontrollerini ekle
-        document.querySelectorAll('#bulkSelectModal .numeric-input').forEach(input => {
-            input.addEventListener('focus', (e) => { 
-                e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
-            });
-            
-            input.addEventListener('blur', (e) => { 
-                e.target.value = formatNumberForInput(e.target.value); 
-            });
-            
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; 
-                const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                
-                if (commaCount > 1) { 
-                    const firstCommaIndex = value.indexOf(','); 
-                    value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
-                }
-                
-                e.target.value = value;
-                
-                if (e.target.value !== originalValue) { 
-                    if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
-                }
-            });
+            // Tümünü seç checkbox'ını sıfırla
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            updateSelectedCount();
+            calculateModalTotalAmount();
         });
     }
-
-    function attachRowCalculationListeners(row) {
-        // Satırdaki tüm sayısal giriş alanlarını bul
-        const numericInputs = row.querySelectorAll('.numeric-input');
-        
-        // Her girişe değişiklik izleyicileri ekle
-        numericInputs.forEach(input => {
-            input.addEventListener('focus', (e) => { 
-                e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
+    
+    // Arama temizleme butonu
+    const clearSearchBtn = document.getElementById('clearSearchBtn');
+    if (clearSearchBtn && searchInput) {
+        clearSearchBtn.addEventListener('click', function() {
+            searchInput.value = '';
+            
+            document.querySelectorAll('.product-row').forEach(row => {
+                row.style.display = '';
             });
             
-            input.addEventListener('blur', (e) => { 
-                e.target.value = formatNumberForInput(e.target.value);
+            // Tümünü seç checkbox'ını sıfırla
+            if (selectAllCheckbox) selectAllCheckbox.checked = false;
+            updateSelectedCount();
+            calculateModalTotalAmount();
+        });
+    }
+    
+    // Seçilen ürünleri ekle butonu
+    const addSelectedProductsBtn = document.getElementById('addSelectedProductsBtn');
+    if (addSelectedProductsBtn) {
+        addSelectedProductsBtn.addEventListener('click', function() {
+            const selectedProducts = [];
+            
+            document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+                // Checkbox'ın bulunduğu satırı al
+                const row = checkbox.closest('.product-row');
+                
+                // Satırdaki değerleri al
+                const quantity = row.querySelector('.product-quantity').value;
+                const price = row.querySelector('.product-price').value;
+                const discount = row.querySelector('.product-discount').value;
+                const tax = row.querySelector('.product-tax').value;
+                
+                selectedProducts.push({
+                    id: checkbox.dataset.id,
+                    code: checkbox.dataset.code,
+                    name: checkbox.dataset.name,
+                    color: checkbox.dataset.color,
+                    quantity: prepareNumberForServer(quantity),
+                    price: prepareNumberForServer(price),
+                    discount: prepareNumberForServer(discount),
+                    tax: prepareNumberForServer(tax)
+                });
+            });
+            
+            if (selectedProducts.length > 0) {
+                addSelectedProductsWithSettings(selectedProducts);
+                if (bulkSelectModal) bulkSelectModal.hide();
+            } else {
+                alert('Lütfen en az bir ürün seçin.');
+            }
+        });
+    }
+}
+
+function setupBulkEditFeatures() {
+    // Toplu Düzenleme butonuna tıklanınca
+    const applyBulkSettingsBtn = document.getElementById('applyBulkSettings');
+    if (applyBulkSettingsBtn) {
+        applyBulkSettingsBtn.addEventListener('click', function() {
+            const bulkQuantity = document.getElementById('bulkQuantity').value;
+            const bulkPrice = document.getElementById('bulkPrice').value;
+            const bulkDiscount = document.getElementById('bulkDiscount').value;
+            const bulkTax = document.getElementById('bulkTax').value;
+            const useOriginalPrices = document.getElementById('useOriginalPrices').checked;
+            
+            // Seçili ürünleri bul
+            document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+                const row = checkbox.closest('.product-row');
+                
+                // Miktar değerini güncelle
+                if (bulkQuantity) {
+                    row.querySelector('.product-quantity').value = bulkQuantity;
+                }
+                
+                // Birim fiyat değerini güncelle
+                if (!useOriginalPrices && bulkPrice) {
+                    row.querySelector('.product-price').value = bulkPrice;
+                }
+                
+                // İndirim değerini güncelle
+                if (bulkDiscount) {
+                    row.querySelector('.product-discount').value = bulkDiscount;
+                }
+                
+                // KDV değerini güncelle
+                if (bulkTax) {
+                    row.querySelector('.product-tax').value = bulkTax;
+                }
+                
+                // Satır toplamını güncelle
                 calculateRowTotal(row);
-                calculateModalTotalAmount();
             });
             
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; 
-                const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                
-                if (commaCount > 1) { 
-                    const firstCommaIndex = value.indexOf(','); 
-                    value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
-                }
-                
-                e.target.value = value;
-                
-                if (e.target.value !== originalValue) { 
-                    if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
-                }
-            });
+            // Modal toplamını güncelle
+            calculateModalTotalAmount();
         });
     }
-
-    function calculateRowTotal(row) {
-        // Satır değerlerini al
-        const quantity = parseFloat(prepareNumberForServer(row.querySelector('.product-quantity').value)) || 0;
-        const price = parseFloat(prepareNumberForServer(row.querySelector('.product-price').value)) || 0;
-        const discount = parseFloat(prepareNumberForServer(row.querySelector('.product-discount').value)) || 0;
-        const tax = parseFloat(prepareNumberForServer(row.querySelector('.product-tax').value)) || 0;
-        
-        // Hesaplamalar
-        const subtotal = quantity * price;
-        const discountAmount = subtotal * (discount / 100);
-        const afterDiscount = subtotal - discountAmount;
-        const taxAmount = afterDiscount * (tax / 100);
-        const total = afterDiscount + taxAmount;
-        
-        // Toplamı güncelle
-        const totalCell = row.querySelector('.product-total');
-        if (totalCell) {
-            totalCell.textContent = formatCurrency(total);
-        }
-        
-        return total;
-    }
-
-    function calculateModalTotalAmount() {
-        let totalAmount = 0;
-        
-        // Seçili satırların toplamlarını hesapla
-        document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
-            const row = checkbox.closest('.product-row');
-            totalAmount += calculateRowTotal(row);
-        });
-        
-        // Modal toplamını güncelle
-        const modalTotalElement = document.getElementById('modalTotalAmount');
-        if (modalTotalElement) {
-            modalTotalElement.textContent = formatCurrency(totalAmount).replace(' ₺', '');
-        }
-    }
-
-    function attachEventListenersToRow(rowElement) {
-        const numericInputs = rowElement.querySelectorAll('.numeric-input');
-        const removeButton = rowElement.querySelector('.remove-item');
-
-        // İnput'lar için event listener'ları
-        numericInputs.forEach(input => {
-            input.addEventListener('focus', (e) => { e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); });
-            input.addEventListener('blur', (e) => { e.target.value = formatNumberForInput(e.target.value); updateTotals(); });
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                if (commaCount > 1) { const firstCommaIndex = value.indexOf(','); value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');}
-                e.target.value = value;
-                if (e.target.value !== originalValue) { if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); }
-                updateTotals();
-            });
-        });
-        
-        // Sil butonu için event listener
-        if (removeButton) removeButton.addEventListener('click', function () {
-            // Select2'yi kaldır (destroy)
-            const select2Element = this.closest('.item-row').querySelector('.item-id-select');
-            if (select2Element && $(select2Element).data('select2')) {
-                $(select2Element).select2('destroy');
+    
+    // "Ürün fiyatlarını kullan" checkbox'ı değişince
+    const useOriginalPricesCheckbox = document.getElementById('useOriginalPrices');
+    const bulkPriceInput = document.getElementById('bulkPrice');
+    
+    if (useOriginalPricesCheckbox && bulkPriceInput) {
+        useOriginalPricesCheckbox.addEventListener('change', function() {
+            bulkPriceInput.disabled = this.checked;
+            if (this.checked) {
+                bulkPriceInput.placeholder = "Mevcut fiyatları kullan";
+                bulkPriceInput.value = '';
+            } else {
+                bulkPriceInput.placeholder = "Toplu fiyat girin";
             }
-            this.closest('.item-row').remove();
-            
-            const itemsContainer = document.getElementById('items-container');
-            if (itemsContainer && itemsContainer.children.length === 0) { 
-                // Kalemlerin hepsi silinirse bir şey yapma
-                // Otomatik yenisini eklemeyi kaldırıyoruz
-            }
-            updateTotals();
         });
+        
+        // Sayfa yüklendiğinde durumu ayarla
+        bulkPriceInput.disabled = useOriginalPricesCheckbox.checked;
+    }
+    
+    // Modal içindeki bulk edit input'larına numeric behavior ekle
+    const bulkInputs = ['bulkQuantity', 'bulkPrice', 'bulkDiscount', 'bulkTax'];
+    bulkInputs.forEach(inputId => {
+        const input = document.getElementById(inputId);
+        if (input) {
+            addNumericInputBehavior(input);
+        }
+    });
+    
+    // Modal içindeki product table numeric input'larına behavior ekle
+    document.querySelectorAll('#bulkSelectModal .product-table .numeric-input').forEach(input => {
+        addNumericInputBehavior(input, () => {
+            const row = input.closest('.product-row');
+            calculateRowTotal(row);
+            calculateModalTotalAmount();
+        });
+    });
+}
+
+function calculateRowTotal(row) {
+    // Satır değerlerini al
+    const quantity = parseFloat(prepareNumberForServer(row.querySelector('.product-quantity').value)) || 0;
+    const price = parseFloat(prepareNumberForServer(row.querySelector('.product-price').value)) || 0;
+    const discount = parseFloat(prepareNumberForServer(row.querySelector('.product-discount').value)) || 0;
+    const tax = parseFloat(prepareNumberForServer(row.querySelector('.product-tax').value)) || 0;
+    
+    // Hesaplamalar
+    const subtotal = quantity * price;
+    const discountAmount = subtotal * (discount / 100);
+    const afterDiscount = subtotal - discountAmount;
+    const taxAmount = afterDiscount * (tax / 100);
+    const total = afterDiscount + taxAmount;
+    
+    // Toplamı güncelle
+    const totalCell = row.querySelector('.product-total');
+    if (totalCell) {
+        totalCell.textContent = formatCurrency(total);
+    }
+    
+    return total;
+}
+
+function calculateModalTotalAmount() {
+    let totalAmount = 0;
+    
+    // Seçili satırların toplamlarını hesapla
+    document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+        const row = checkbox.closest('.product-row');
+        totalAmount += calculateRowTotal(row);
+    });
+    
+    // Modal toplamını güncelle
+    const modalTotalElement = document.getElementById('modalTotalAmount');
+    if (modalTotalElement) {
+        modalTotalElement.textContent = formatCurrency(totalAmount).replace(' ₺', '');
+    }
+}
+
+function attachEventListenersToRow(rowElement) {
+    const numericInputs = rowElement.querySelectorAll('.numeric-input');
+    const removeButton = rowElement.querySelector('.remove-item');
+
+    // Numeric input'lar için davranışı ekle
+    numericInputs.forEach(input => {
+        addNumericInputBehavior(input, updateTotals);
+    });
+    
+    // Sil butonu için event listener
+    if (removeButton) removeButton.addEventListener('click', function () {
+        // Select2'yi kaldır (destroy)
+        const select2Element = this.closest('.item-row').querySelector('.item-id-select');
+        if (select2Element && $(select2Element).data('select2')) {
+            $(select2Element).select2('destroy');
+        }
+        this.closest('.item-row').remove();
+        
+        updateTotals();
+    });
+}
+
+function addNewItem(container) {
+    const template = document.getElementById('item-template');
+    if (!template) {
+        console.error('Item template not found!');
+        return;
+    }
+    
+    const clone = document.importNode(template.content, true);
+    const newRow = clone.querySelector('.item-row');
+
+    attachEventListenersToRow(newRow); // Önce event listener'ları ata
+    container.appendChild(clone);
+
+    // Yeni eklenen satırdaki Select2'yi başlat
+    const newItemIdSelect = newRow.querySelector('.item-id-select');
+    if (newItemIdSelect) {
+        initializeSelect2(newItemIdSelect);
     }
 
-    function addNewItem(container) {
+    // Sayısal değerleri formatla
+    newRow.querySelectorAll('.numeric-input').forEach(input => {
+        input.value = formatNumberForInput(input.value);
+    });
+    
+    updateTotals();
+}
+
+function handleItemIdChange(itemIdSelectElement) {
+    const selectedOption = itemIdSelectElement.options[itemIdSelectElement.selectedIndex];
+    const row = itemIdSelectElement.closest('.item-row');
+    const priceInput = row.querySelector('.item-price');
+    const taxInput = row.querySelector('.item-tax');
+    const descInput = row.querySelector('.item-description');
+    const colorSwatchContainer = row.querySelector('.item-color-swatch');
+    const colorSwatchSpan = colorSwatchContainer ? colorSwatchContainer.querySelector('span') : null;
+
+    if (selectedOption && selectedOption.value) {
+        priceInput.value = formatNumberForInput(selectedOption.dataset.price);
+        taxInput.value = formatNumberForInput(selectedOption.dataset.tax);
+        descInput.value = selectedOption.dataset.description;
+
+        if (colorSwatchContainer && colorSwatchSpan && selectedOption.dataset.colorHex && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(selectedOption.dataset.colorHex)) {
+            colorSwatchSpan.style.backgroundColor = selectedOption.dataset.colorHex;
+            colorSwatchContainer.style.display = 'inline-flex';
+        } else if (colorSwatchContainer) {
+            colorSwatchContainer.style.display = 'none';
+        }
+    } else {
+        priceInput.value = formatNumberForInput(0);
+        taxInput.value = formatNumberForInput(18);
+        descInput.value = '';
+        if (colorSwatchContainer) colorSwatchContainer.style.display = 'none';
+    }
+    updateTotals();
+}
+
+function updateSelectedCount() {
+    const selectedCount = document.querySelectorAll('.product-checkbox:checked').length;
+    const selectedCountSpan = document.getElementById('selectedCount');
+    if (selectedCountSpan) {
+        selectedCountSpan.textContent = selectedCount;
+    }
+}
+
+function addSelectedProductsWithSettings(selectedProducts) {
+    const itemsContainer = document.getElementById('items-container');
+    if (!itemsContainer) {
+        console.error('Items container not found!');
+        return;
+    }
+    
+    selectedProducts.forEach(product => {
         const template = document.getElementById('item-template');
         if (!template) {
             console.error('Item template not found!');
@@ -1246,214 +1290,131 @@ include 'includes/sidebar.php';
         
         const clone = document.importNode(template.content, true);
         const newRow = clone.querySelector('.item-row');
-
-        attachEventListenersToRow(newRow); // Önce event listener'ları ata
-        container.appendChild(clone);
-
-        // Yeni eklenen satırdaki Select2'yi başlat
-        const newItemIdSelect = newRow.querySelector('.item-id-select');
-        if (newItemIdSelect) {
-            initializeSelect2(newItemIdSelect);
-        }
-
-        // Sayısal değerleri formatla
-        newRow.querySelectorAll('.numeric-input').forEach(input => {
-            input.value = formatNumberForInput(input.value);
-        });
         
-        updateTotals();
-    }
-
-    function handleItemIdChange(itemIdSelectElement) { // itemIdSelectElement artık DOM select elementi
-        const selectedOption = itemIdSelectElement.options[itemIdSelectElement.selectedIndex];
-        const row = itemIdSelectElement.closest('.item-row');
-        const priceInput = row.querySelector('.item-price');
-        const taxInput = row.querySelector('.item-tax');
-        const descInput = row.querySelector('.item-description');
-        const colorSwatchContainer = row.querySelector('.item-color-swatch');
+        // Ürün bilgilerini doldur
+        const itemIdSelect = newRow.querySelector('.item-id-select');
+        const priceInput = newRow.querySelector('.item-price');
+        const taxInput = newRow.querySelector('.item-tax');
+        const descInput = newRow.querySelector('.item-description');
+        const quantityInput = newRow.querySelector('.item-quantity');
+        const discountInput = newRow.querySelector('.item-discount');
+        const colorSwatchContainer = newRow.querySelector('.item-color-swatch');
         const colorSwatchSpan = colorSwatchContainer ? colorSwatchContainer.querySelector('span') : null;
-
-        if (selectedOption && selectedOption.value) {
-            priceInput.value = formatNumberForInput(selectedOption.dataset.price);
-            taxInput.value = formatNumberForInput(selectedOption.dataset.tax);
-            descInput.value = selectedOption.dataset.description;
-
-            if (colorSwatchContainer && colorSwatchSpan && selectedOption.dataset.colorHex && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(selectedOption.dataset.colorHex)) {
-                colorSwatchSpan.style.backgroundColor = selectedOption.dataset.colorHex;
-                colorSwatchContainer.style.display = 'inline-flex';
-            } else if (colorSwatchContainer) {
-                colorSwatchContainer.style.display = 'none';
-            }
-        } else { // Seçim yoksa veya "Önce tür seçin" seçiliyse
-            priceInput.value = formatNumberForInput(0);
-            taxInput.value = formatNumberForInput(18); // Varsayılan KDV
-            descInput.value = '';
-            if (colorSwatchContainer) colorSwatchContainer.style.display = 'none';
+        
+        // Event listener'ları ekle
+        attachEventListenersToRow(newRow);
+        
+        // Önce Select2'yi başlat
+        initializeSelect2(itemIdSelect);
+        
+        // Sonra değerleri ayarla
+        $(itemIdSelect).val(product.id).trigger('change');
+        
+        // Modal'dan gelen değerleri kullan
+        priceInput.value = formatNumberForInput(product.price);
+        taxInput.value = formatNumberForInput(product.tax);
+        quantityInput.value = formatNumberForInput(product.quantity);
+        discountInput.value = formatNumberForInput(product.discount);
+        descInput.value = product.name;
+        
+        // Renk kutucuğunu ayarla
+        if (colorSwatchContainer && colorSwatchSpan && product.color && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(product.color)) {
+            colorSwatchSpan.style.backgroundColor = product.color;
+            colorSwatchContainer.style.display = 'inline-flex';
+        } else if (colorSwatchContainer) {
+            colorSwatchContainer.style.display = 'none';
         }
-        updateTotals();
-    }
+        
+        // Satırı ekle
+        itemsContainer.appendChild(newRow);
+    });
+    
+    updateTotals();
+}
 
-    function updateSelectedCount() {
-        const selectedCount = document.querySelectorAll('.product-checkbox:checked').length;
-        const selectedCountSpan = document.getElementById('selectedCount');
-        if (selectedCountSpan) {
-            selectedCountSpan.textContent = selectedCount;
+function updateTotals() {
+    let subtotal = 0; let totalDiscount = 0; let totalTax = 0;
+    
+    document.querySelectorAll('.item-row').forEach(row => {
+        const quantity = parseFloat(prepareNumberForServer(row.querySelector('.item-quantity').value)) || 0;
+        const price = parseFloat(prepareNumberForServer(row.querySelector('.item-price').value)) || 0;
+        const discountPercent = parseFloat(prepareNumberForServer(row.querySelector('.item-discount').value)) || 0;
+        const taxPercent = parseFloat(prepareNumberForServer(row.querySelector('.item-tax').value)) || 0;
+        
+        const lineSubtotal = quantity * price;
+        const lineDiscount = lineSubtotal * (discountPercent / 100);
+        const lineSubtotalAfterDiscount = lineSubtotal - lineDiscount;
+        const lineTax = lineSubtotalAfterDiscount * (taxPercent / 100);
+        
+        subtotal += lineSubtotal;
+        totalDiscount += lineDiscount;
+        totalTax += lineTax;
+    });
+    
+    const total = subtotal - totalDiscount + totalTax;
+    
+    const subtotalElement = document.getElementById('subtotal');
+    const discountElement = document.getElementById('discount');
+    const taxElement = document.getElementById('tax');
+    const totalElement = document.getElementById('total');
+    
+    if (subtotalElement) subtotalElement.textContent = formatCurrency(subtotal);
+    if (discountElement) discountElement.textContent = formatCurrency(totalDiscount);
+    if (taxElement) taxElement.textContent = formatCurrency(totalTax);
+    if (totalElement) totalElement.textContent = formatCurrency(total);
+}
+
+function updateTermsAndConditions() {
+    const paymentTermsSelect = document.getElementById('payment_terms');
+    if (!paymentTermsSelect) return;
+    
+    const paymentTermsText = paymentTermsSelect.options[paymentTermsSelect.selectedIndex].text;
+    const paymentPercentage = document.getElementById('payment_percentage').value;
+    const deliveryDays = document.getElementById('delivery_days').value;
+    const transportationIncluded = document.getElementById('transportation_included').checked;
+    const customTerms = document.getElementById('custom_terms').value;
+    
+    let termsText = '';
+    const validUntilDateInput = document.getElementById('valid_until').value;
+    
+    if (validUntilDateInput) {
+        const dateParts = validUntilDateInput.split('-');
+        const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
+        termsText += `Teklif Geçerlilik Tarihi: ${formattedDate}\n`;
+    }
+    
+    const paymentTermValue = paymentTermsSelect.value;
+    if (paymentTermValue === 'advance_payment') {
+        termsText += `Ödeme Şartları: ${paymentTermsText} (%100).\n`;
+    } else if (paymentTermValue === 'partial_payment') {
+        termsText += `Ödeme Şartları: ${paymentTermsText} (%${paymentPercentage} peşin, %${100 - parseInt(paymentPercentage)} teslimat öncesi).\n`;
+    } else {
+        termsText += `Ödeme Şartları: ${paymentTermsText}.\n`;
+        if (paymentTermValue === 'installment' && paymentPercentage > 0 && paymentPercentage < 100) {
+            termsText = termsText.trim() + ` (%${paymentPercentage} peşin, kalanı taksitlendirilecektir).\n`;
         }
     }
     
-    function addSelectedProductsWithSettings(selectedProducts) {
-        const itemsContainer = document.getElementById('items-container');
-        if (!itemsContainer) {
-            console.error('Items container not found!');
-            return;
-        }
-        
-        selectedProducts.forEach(product => {
-            const template = document.getElementById('item-template');
-            if (!template) {
-                console.error('Item template not found!');
-                return;
-            }
-            
-            const clone = document.importNode(template.content, true);
-            const newRow = clone.querySelector('.item-row');
-            
-            // Ürün bilgilerini doldur
-            const itemIdSelect = newRow.querySelector('.item-id-select');
-            const priceInput = newRow.querySelector('.item-price');
-            const taxInput = newRow.querySelector('.item-tax');
-            const descInput = newRow.querySelector('.item-description');
-            const quantityInput = newRow.querySelector('.item-quantity');
-            const discountInput = newRow.querySelector('.item-discount');
-            const colorSwatchContainer = newRow.querySelector('.item-color-swatch');
-            const colorSwatchSpan = colorSwatchContainer ? colorSwatchContainer.querySelector('span') : null;
-            
-            // Event listener'ları ekle
-            attachEventListenersToRow(newRow);
-            
-            // Önce Select2'yi başlat
-            initializeSelect2(itemIdSelect);
-            
-            // Sonra değerleri ayarla
-            $(itemIdSelect).val(product.id).trigger('change'); // Select2 için
-            
-            // Modal'dan gelen değerleri kullan
-            priceInput.value = formatNumberForInput(product.price);
-            taxInput.value = formatNumberForInput(product.tax);
-            quantityInput.value = formatNumberForInput(product.quantity);
-            discountInput.value = formatNumberForInput(product.discount);
-            descInput.value = product.name;
-            
-            // Renk kutucuğunu ayarla
-            if (colorSwatchContainer && colorSwatchSpan && product.color && /^#([a-fA-F0-9]{6}|[a-fA-F0-9]{3})$/.test(product.color)) {
-                colorSwatchSpan.style.backgroundColor = product.color;
-                colorSwatchContainer.style.display = 'inline-flex';
-            } else if (colorSwatchContainer) {
-                colorSwatchContainer.style.display = 'none';
-            }
-            
-            // Satırı ekle
-            itemsContainer.appendChild(newRow);
-        });
-        
-        updateTotals();
-    }
-
-    function updateTotals() {
-        let subtotal = 0; let totalDiscount = 0; let totalTax = 0;
-        
-        document.querySelectorAll('.item-row').forEach(row => {
-            const quantity = parseFloat(prepareNumberForServer(row.querySelector('.item-quantity').value)) || 0;
-            const price = parseFloat(prepareNumberForServer(row.querySelector('.item-price').value)) || 0;
-            const discountPercent = parseFloat(prepareNumberForServer(row.querySelector('.item-discount').value)) || 0;
-            const taxPercent = parseFloat(prepareNumberForServer(row.querySelector('.item-tax').value)) || 0;
-            
-            const lineSubtotal = quantity * price;
-            const lineDiscount = lineSubtotal * (discountPercent / 100);
-            const lineSubtotalAfterDiscount = lineSubtotal - lineDiscount;
-            const lineTax = lineSubtotalAfterDiscount * (taxPercent / 100);
-            
-            subtotal += lineSubtotal;
-            totalDiscount += lineDiscount;
-            totalTax += lineTax;
-        });
-        
-        const total = subtotal - totalDiscount + totalTax;
-        
-        const subtotalElement = document.getElementById('subtotal');
-        const discountElement = document.getElementById('discount');
-        const taxElement = document.getElementById('tax');
-        const totalElement = document.getElementById('total');
-        
-        if (subtotalElement) subtotalElement.textContent = formatCurrency(subtotal);
-        if (discountElement) discountElement.textContent = formatCurrency(totalDiscount);
-        if (taxElement) taxElement.textContent = formatCurrency(totalTax);
-        if (totalElement) totalElement.textContent = formatCurrency(total);
+    termsText += `Teslimat Süresi: Sipariş onayından itibaren ${deliveryDays} iş günüdür.\n`;
+    
+    let additionalServices = [];
+    if (transportationIncluded) additionalServices.push('Nakliye');
+    
+    if (additionalServices.length > 0) {
+        termsText += `Fiyata Dahil Olan Hizmetler: ${additionalServices.join(' ve ')}\n`;
+    } else {
+        termsText += `Fiyata Nakliye dahil değildir.\n`;
     }
     
-    function updateTermsAndConditions() {
-        const paymentTermsSelect = document.getElementById('payment_terms');
-        if (!paymentTermsSelect) return;
-        
-        const paymentTermsText = paymentTermsSelect.options[paymentTermsSelect.selectedIndex].text;
-        const paymentPercentage = document.getElementById('payment_percentage').value;
-        const deliveryDays = document.getElementById('delivery_days').value;
-        // Garanti süresi ve kurulum dahil alanlarını kaldırdık
-        // const warrantyPeriod = document.getElementById('warranty_period').value;
-        // const installationIncluded = document.getElementById('installation_included').checked;
-        const transportationIncluded = document.getElementById('transportation_included').checked;
-        const customTerms = document.getElementById('custom_terms').value;
-        
-        let termsText = '';
-        const validUntilDateInput = document.getElementById('valid_until').value;
-        
-        if (validUntilDateInput) {
-            const dateParts = validUntilDateInput.split('-');
-            const formattedDate = `${dateParts[2]}.${dateParts[1]}.${dateParts[0]}`;
-            termsText += `Teklif Geçerlilik Tarihi: ${formattedDate}\n`;
-        }
-        
-        const paymentTermValue = paymentTermsSelect.value;
-        if (paymentTermValue === 'advance_payment') {
-            termsText += `Ödeme Şartları: ${paymentTermsText} (%100).\n`;
-        } else if (paymentTermValue === 'partial_payment') {
-            termsText += `Ödeme Şartları: ${paymentTermsText} (%${paymentPercentage} peşin, %${100 - parseInt(paymentPercentage)} teslimat öncesi).\n`;
-        } else {
-            termsText += `Ödeme Şartları: ${paymentTermsText}.\n`;
-            if (paymentTermValue === 'installment' && paymentPercentage > 0 && paymentPercentage < 100) {
-                termsText = termsText.trim() + ` (%${paymentPercentage} peşin, kalanı taksitlendirilecektir).\n`;
-            }
-        }
-        
-        termsText += `Teslimat Süresi: Sipariş onayından itibaren ${deliveryDays} iş günüdür.\n`;
-        
-        // Garanti süresi kısmını kaldırdık
-        /*
-        if (warrantyPeriod.trim() !== '') {
-            termsText += `Garanti Süresi: ${warrantyPeriod}\n`;
-        }
-        */
-        
-        let additionalServices = [];
-        // Kurulum dahil kısmını kaldırdık
-        // if (installationIncluded) additionalServices.push('Kurulum');
-        if (transportationIncluded) additionalServices.push('Nakliye');
-        
-        if (additionalServices.length > 0) {
-            termsText += `Fiyata Dahil Olan Hizmetler: ${additionalServices.join(' ve ')}\n`;
-        } else {
-            termsText += `Fiyata Nakliye dahil değildir.\n`;
-        }
-        
-        if (customTerms.trim() !== '') {
-            termsText += '\nDiğer Şartlar:\n' + customTerms;
-        }
-        
-        const termsConditionsInput = document.getElementById('terms_conditions');
-        if (termsConditionsInput) {
-            termsConditionsInput.value = termsText.trim();
-        }
+    if (customTerms.trim() !== '') {
+        termsText += '\nDiğer Şartlar:\n' + customTerms;
     }
+    
+    const termsConditionsInput = document.getElementById('terms_conditions');
+    if (termsConditionsInput) {
+        termsConditionsInput.value = termsText.trim();
+    }
+}
 </script>
 
 </body>

@@ -309,8 +309,8 @@ $pageTitle = 'Teklif Düzenle';
 $currentPage = 'quotations';
 include 'includes/header.php';
 // Select2 CSS ekliyoruz
-echo '<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />';
-echo '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.min.css" />'; // Bootstrap 5 teması
+echo '<link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/css/select2.min.css" rel="stylesheet" />';
+echo '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/select2-bootstrap-5-theme/1.3.0/select2-bootstrap-5-theme.min.css" />';
 include 'includes/navbar.php';
 include 'includes/sidebar.php';
 ?>
@@ -905,9 +905,9 @@ include 'includes/sidebar.php';
 </div>
 
 <!-- ÖNEMLİ: Bu scriptler sayfanın en altında olmalı ve bu sırayla yüklenmeli -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/bootstrap/5.3.0/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.1.0-rc.0/js/select2.min.js"></script>
 
 <script>
     // Ürün verilerini JS'de kullanmak üzere
@@ -951,14 +951,60 @@ include 'includes/sidebar.php';
         const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').replace(',', '.') || 0);
         return new Intl.NumberFormat('tr-TR', { style: 'currency', currency: 'TRY', minimumFractionDigits: 2 }).format(num);
     }
-    // Sayı formatı (Inputta göstermek için virgüllü)
+    
+    // DÜZELTME: Sayı formatı (Inputta göstermek için virgüllü) - virgül karakteri regex'e eklendi
     function formatNumberForInput(value) {
-        const num = parseFloat(String(value).replace(/[^0-9.-]/g, '').replace(',', '.') || 0);
+        const num = parseFloat(String(value).replace(/[^0-9.,-]/g, '').replace(',', '.') || 0);
         return num.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    
     // Sayıyı sunucuya göndermeden önce noktaya çevirir
     function prepareNumberForServer(value) {
         return String(value).replace(/\./g, '').replace(',', '.');
+    }
+
+    // Yardımcı fonksiyon: Element'e event listener eklenmişmi kontrol et
+    function hasNumericListeners(element) {
+        return element.hasAttribute('data-numeric-initialized');
+    }
+
+    // Yardımcı fonksiyon: Numeric input davranışını ekle
+    function addNumericInputBehavior(input, updateCallback = null) {
+        // Eğer zaten eklenmiş ise tekrar ekleme
+        if (hasNumericListeners(input)) {
+            return;
+        }
+        
+        input.setAttribute('data-numeric-initialized', 'true');
+        
+        input.addEventListener('focus', (e) => { 
+            e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
+        });
+        
+        input.addEventListener('blur', (e) => { 
+            e.target.value = formatNumberForInput(e.target.value);
+            if (updateCallback) updateCallback();
+        });
+        
+        input.addEventListener('input', (e) => {
+            const caretPosition = e.target.selectionStart; 
+            const originalValue = e.target.value;
+            let value = e.target.value.replace(/[^0-9,.]/g, '');
+            let commaCount = (value.match(/,/g) || []).length;
+            
+            if (commaCount > 1) { 
+                const firstCommaIndex = value.indexOf(','); 
+                value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
+            }
+            
+            e.target.value = value;
+            
+            if (e.target.value !== originalValue) { 
+                if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
+            }
+            
+            if (updateCallback) updateCallback();
+        });
     }
 
     document.addEventListener('DOMContentLoaded', function () {
@@ -996,25 +1042,8 @@ include 'includes/sidebar.php';
         if (openBulkSelectBtn) {
             openBulkSelectBtn.addEventListener('click', function() {
                 if (bulkSelectModal) {
-                    // Modalı açmadan önce seçimleri temizle
-                    document.querySelectorAll('.product-checkbox').forEach(checkbox => {
-                        checkbox.checked = false;
-                    });
-                    
-                    const selectAllCheckbox = document.getElementById('selectAllProducts');
-                    if (selectAllCheckbox) selectAllCheckbox.checked = false;
-                    
-                    const selectedCountSpan = document.getElementById('selectedCount');
-                    if (selectedCountSpan) selectedCountSpan.textContent = '0';
-                    
-                    const searchInput = document.getElementById('productSearchInput');
-                    if (searchInput) searchInput.value = '';
-                    
-                    // Filtreyi temizle
-                    document.querySelectorAll('.product-row').forEach(row => {
-                        row.style.display = '';
-                    });
-                    
+                    // YENİ: Mevcut teklif verilerini modal'a yükle
+                    loadCurrentQuotationDataToModal();
                     bulkSelectModal.show();
                 }
             });
@@ -1066,6 +1095,79 @@ include 'includes/sidebar.php';
             }
         });
     });
+
+    // YENİ FONKSİYON: Mevcut teklif verilerini modal'a yükle
+    function loadCurrentQuotationDataToModal() {
+        // Önce tüm checkbox'ları temizle
+        document.querySelectorAll('.product-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+            const row = checkbox.closest('.product-row');
+            if (row) {
+                row.classList.remove('selected');
+                // Değerleri default'lara sıfırla
+                row.querySelector('.product-quantity').value = row.querySelector('.product-quantity').dataset.default || '1,00';
+                row.querySelector('.product-price').value = row.querySelector('.product-price').dataset.default || '0,00';
+                row.querySelector('.product-discount').value = row.querySelector('.product-discount').dataset.default || '0,00';
+                row.querySelector('.product-tax').value = row.querySelector('.product-tax').dataset.default || '0,00';
+                calculateRowTotal(row);
+            }
+        });
+
+        // Arama inputunu temizle
+        const searchInput = document.getElementById('productSearchInput');
+        if (searchInput) searchInput.value = '';
+        
+        // Tüm satırları görünür yap
+        document.querySelectorAll('.product-row').forEach(row => {
+            row.style.display = '';
+        });
+
+        // Mevcut teklif kalemlerini kontrol et ve modal'da işaretle
+        const currentItemRows = document.querySelectorAll('#items-container .item-row');
+        
+        currentItemRows.forEach(itemRow => {
+            const itemSelect = itemRow.querySelector('.item-id-select');
+            if (!itemSelect || !itemSelect.value) return;
+            
+            const itemId = itemSelect.value;
+            const quantity = itemRow.querySelector('.item-quantity').value;
+            const price = itemRow.querySelector('.item-price').value;
+            const discount = itemRow.querySelector('.item-discount').value;
+            const tax = itemRow.querySelector('.item-tax').value;
+            
+            // Modal'da bu ürünü bul ve işaretle
+            const modalCheckbox = document.querySelector(`.product-checkbox[data-id="${itemId}"]`);
+            if (modalCheckbox) {
+                modalCheckbox.checked = true;
+                
+                const modalRow = modalCheckbox.closest('.product-row');
+                if (modalRow) {
+                    modalRow.classList.add('selected');
+                    
+                    // Modal satırındaki değerleri teklifteki değerlerle güncelle
+                    modalRow.querySelector('.product-quantity').value = quantity;
+                    modalRow.querySelector('.product-price').value = price;
+                    modalRow.querySelector('.product-discount').value = discount;
+                    modalRow.querySelector('.product-tax').value = tax;
+                    
+                    // Satır toplamını hesapla
+                    calculateRowTotal(modalRow);
+                }
+            }
+        });
+
+        // Seçili sayısını ve toplamı güncelle
+        updateSelectedCount();
+        calculateModalTotalAmount();
+        
+        // Tümünü seç checkbox'ını güncelle
+        const selectAllCheckbox = document.getElementById('selectAllProducts');
+        if (selectAllCheckbox) {
+            const totalVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"])').length;
+            const selectedVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"]) .product-checkbox:checked').length;
+            selectAllCheckbox.checked = totalVisibleProducts > 0 && totalVisibleProducts === selectedVisibleProducts;
+        }
+    }
 
     function setupModalEventListeners() {
         // Tümünü seç checkbox'ı
@@ -1130,8 +1232,12 @@ include 'includes/sidebar.php';
                     }
                 });
                 
-                // Tümünü seç checkbox'ını sıfırla
-                if (selectAllCheckbox) selectAllCheckbox.checked = false;
+                // Tümünü seç checkbox'ını güncelle
+                const totalVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"])').length;
+                const selectedVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"]) .product-checkbox:checked').length;
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = totalVisibleProducts > 0 && totalVisibleProducts === selectedVisibleProducts;
+                }
                 updateSelectedCount();
                 calculateModalTotalAmount();
             });
@@ -1147,8 +1253,12 @@ include 'includes/sidebar.php';
                     row.style.display = '';
                 });
                 
-                // Tümünü seç checkbox'ını sıfırla
-                if (selectAllCheckbox) selectAllCheckbox.checked = false;
+                // Tümünü seç checkbox'ını güncelle
+                const totalVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"])').length;
+                const selectedVisibleProducts = document.querySelectorAll('.product-row:not([style*="display: none"]) .product-checkbox:checked').length;
+                if (selectAllCheckbox) {
+                    selectAllCheckbox.checked = totalVisibleProducts > 0 && totalVisibleProducts === selectedVisibleProducts;
+                }
                 updateSelectedCount();
                 calculateModalTotalAmount();
             });
@@ -1183,18 +1293,14 @@ include 'includes/sidebar.php';
                 });
                 
                 if (selectedProducts.length > 0) {
-                    addSelectedProductsWithSettings(selectedProducts);
+                    // YENİ: Önce mevcut kalemleri temizle, sonra seçilenleri ekle
+                    replaceAllItemsWithSelected(selectedProducts);
                     if (bulkSelectModal) bulkSelectModal.hide();
                 } else {
                     alert('Lütfen en az bir ürün seçin.');
                 }
             });
         }
-        
-        // Her satırdaki miktar, fiyat, indirim, kdv değişiklikleri için event listener'ları ekle
-        document.querySelectorAll('.product-table .product-row').forEach(row => {
-            attachRowCalculationListeners(row);
-        });
     }
 
     function setupBulkEditFeatures() {
@@ -1260,32 +1366,21 @@ include 'includes/sidebar.php';
             bulkPriceInput.disabled = useOriginalPricesCheckbox.checked;
         }
         
-        // Numerik giriş kontrollerini ekle
-        document.querySelectorAll('.numeric-input').forEach(input => {
-            input.addEventListener('focus', (e) => { 
-                e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
-            });
-            
-            input.addEventListener('blur', (e) => { 
-                e.target.value = formatNumberForInput(e.target.value); 
-            });
-            
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; 
-                const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                
-                if (commaCount > 1) { 
-                    const firstCommaIndex = value.indexOf(','); 
-                    value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
-                }
-                
-                e.target.value = value;
-                
-                if (e.target.value !== originalValue) { 
-                    if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
-                }
+        // Modal içindeki bulk edit input'larına numeric behavior ekle
+        const bulkInputs = ['bulkQuantity', 'bulkPrice', 'bulkDiscount', 'bulkTax'];
+        bulkInputs.forEach(inputId => {
+            const input = document.getElementById(inputId);
+            if (input) {
+                addNumericInputBehavior(input);
+            }
+        });
+        
+        // Modal içindeki product table numeric input'larına behavior ekle
+        document.querySelectorAll('#bulkSelectModal .product-table .numeric-input').forEach(input => {
+            addNumericInputBehavior(input, () => {
+                const row = input.closest('.product-row');
+                calculateRowTotal(row);
+                calculateModalTotalAmount();
             });
         });
     }
@@ -1326,53 +1421,6 @@ include 'includes/sidebar.php';
         
         // Toplamları güncelle
         updateTotals();
-    }
-
-    function attachRowCalculationListeners(row) {
-        // Satırdaki tüm sayısal giriş alanlarını bul
-        const numericInputs = row.querySelectorAll('.numeric-input');
-        
-        // Her girişe değişiklik izleyicileri ekle
-        numericInputs.forEach(input => {
-            input.addEventListener('focus', (e) => { 
-                e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
-            });
-            
-            input.addEventListener('blur', (e) => { 
-                e.target.value = formatNumberForInput(e.target.value);
-                if (row.closest('.product-table')) {
-                    calculateRowTotal(row);
-                    calculateModalTotalAmount();
-                } else {
-                    updateTotals();
-                }
-            });
-            
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; 
-                const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                
-                if (commaCount > 1) { 
-                    const firstCommaIndex = value.indexOf(','); 
-                    value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
-                }
-                
-                e.target.value = value;
-                
-                if (e.target.value !== originalValue) { 
-                    if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
-                }
-                
-                if (row.closest('.product-table')) {
-                    calculateRowTotal(row);
-                    calculateModalTotalAmount();
-                } else {
-                    updateTotals();
-                }
-            });
-        });
     }
 
     function calculateRowTotal(row) {
@@ -1426,36 +1474,9 @@ include 'includes/sidebar.php';
         const numericInputs = rowElement.querySelectorAll('.numeric-input');
         const removeButton = rowElement.querySelector('.remove-item');
         
-        // Sayısal input'lar için event listener'ları
+        // Numeric input'lar için davranışı ekle
         numericInputs.forEach(input => {
-            input.addEventListener('focus', (e) => { 
-                e.target.value = String(e.target.value).replace(/\./g, '').replace(',', '.'); 
-            });
-            
-            input.addEventListener('blur', (e) => { 
-                e.target.value = formatNumberForInput(e.target.value); 
-                updateTotals(); 
-            });
-            
-            input.addEventListener('input', (e) => {
-                const caretPosition = e.target.selectionStart; 
-                const originalValue = e.target.value;
-                let value = e.target.value.replace(/[^0-9,.]/g, '');
-                let commaCount = (value.match(/,/g) || []).length;
-                
-                if (commaCount > 1) { 
-                    const firstCommaIndex = value.indexOf(','); 
-                    value = value.substring(0, firstCommaIndex + 1) + value.substring(firstCommaIndex + 1).replace(/,/g, '');
-                }
-                
-                e.target.value = value;
-                
-                if (e.target.value !== originalValue) { 
-                    if (caretPosition > 0) e.target.setSelectionRange(caretPosition -1, caretPosition -1); 
-                }
-                
-                updateTotals();
-            });
+            addNumericInputBehavior(input, updateTotals);
         });
         
         // Sil butonu için event listener
@@ -1558,13 +1579,25 @@ include 'includes/sidebar.php';
         updateTotals();
     }
     
-    function addSelectedProductsWithSettings(selectedProducts) {
+    // YENİ FONKSİYON: Mevcut tüm kalemleri sil ve seçilenleri ekle
+    function replaceAllItemsWithSelected(selectedProducts) {
         const itemsContainer = document.getElementById('items-container');
         if (!itemsContainer) {
             console.error('Items container not found!');
             return;
         }
         
+        // Önce mevcut tüm kalemleri sil
+        itemsContainer.querySelectorAll('.item-row').forEach(row => {
+            // Select2'yi temizle
+            const select2Element = row.querySelector('.item-id-select');
+            if (select2Element && $(select2Element).data('select2')) {
+                $(select2Element).select2('destroy');
+            }
+            row.remove();
+        });
+        
+        // Sonra seçilen ürünleri ekle
         selectedProducts.forEach(product => {
             const template = document.getElementById('item-template');
             if (!template) {
@@ -1655,8 +1688,8 @@ include 'includes/sidebar.php';
         const paymentPercentage = document.getElementById('payment_percentage').value;
         const deliveryDays = document.getElementById('delivery_days').value;
         // const warrantyPeriod = document.getElementById('warranty_period').value;
-        const installationIncluded = document.getElementById('installation_included').checked;
-        const transportationIncluded = document.getElementById('transportation_included').checked;
+        const installationIncluded = document.getElementById('installation_included') ? document.getElementById('installation_included').checked : false;
+        const transportationIncluded = document.getElementById('transportation_included') ? document.getElementById('transportation_included').checked : false;
         const customTerms = document.getElementById('custom_terms').value;
 
         let termsText = '';

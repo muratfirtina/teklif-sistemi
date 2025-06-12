@@ -164,7 +164,7 @@ include 'includes/sidebar.php';
                             <div class="col-md-4">
                                 <label for="tax_rate" class="form-label">KDV Oranı (%)</label>
                                 <input type="text" class="form-control" id="tax_rate" name="tax_rate"
-                                       value="<?php echo isset($tax_rate) ? htmlspecialchars($tax_rate) : '18'; ?>">
+                                       value="<?php echo isset($tax_rate) ? htmlspecialchars($tax_rate) : '20'; ?>">
                             </div>
                             <div class="col-md-4">
                                 <label for="stock_quantity" class="form-label">Stok Miktarı</label>
